@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mis Noticias</title>
+  <meta name="description" content="Noticias de economía, mercados, tecnología y geopolítica, explicadas en español.">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Noticias">
+  <script>
+    // Aplicar el tema guardado antes de pintar (evita parpadeo).
+    try { var t = localStorage.getItem("tema"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="barra-fila">
+      <div class="marca">
+        <h1>Mis Noticias</h1>
+        <span id="actualizado" class="actualizado">Cargando…</span>
+      </div>
+      <div class="acciones">
+        <button id="btn-recargar" class="icono-btn" type="button" aria-label="Actualizar">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+        </button>
+        <button id="btn-tema" class="icono-btn" type="button" aria-label="Cambiar tema">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.5 0-.9-.1-1.4A5.5 5.5 0 0 1 13.4 3.1 9 9 0 0 0 12 3z"/></svg>
+        </button>
+      </div>
+    </div>
+    <nav id="filtros" class="filtros" aria-label="Filtrar por tema"></nav>
+  </header>
+
+  <main id="lista" class="lista" aria-live="polite"></main>
+
+  <footer class="pie">
+    <details id="estado-fuentes">
+      <summary>Estado de las fuentes</summary>
+      <div id="tabla-fuentes">Cargando…</div>
+    </details>
+    <p>Resúmenes generados con IA a partir de los medios citados. Verificá siempre en la nota original antes de tomar decisiones de inversión.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,314 @@
+# =====================================================================
+#  CONFIGURACIÓN DE "MIS NOTICIAS"
+#  Podés editar este archivo directamente desde la web de GitHub
+#  (botón del lápiz ✏️). Las líneas que empiezan con # son comentarios.
+# =====================================================================
+
+[general]
+# Modelo de Claude. Haiku 4.5 es el más económico.
+modelo = "claude-haiku-4-5"
+
+# Tope de gasto diario en la API de Claude (en dólares). Si se alcanza,
+# el robot deja de redactar noticias nuevas hasta el día siguiente (UTC).
+presupuesto_diario_usd = 1.50
+
+# Relevancia mínima (1 a 5) para que una noticia se publique.
+# 3 = filtra lo menor. Subilo a 4 si querés solo lo más importante
+# (y gastar menos); bajalo a 2 si querés ver más cosas.
+relevancia_minima = 3
+
+# Cuántas horas de noticias se muestran en la web.
+horas_a_mostrar = 72
+
+# Noticias más viejas que esto (en horas) se ignoran al leer los RSS.
+antiguedad_maxima_horas = 24
+
+# En la primera ejecución (sin historial) solo se procesan las noticias
+# de las últimas N horas, para no gastar de más.
+horas_primera_vez = 4
+
+# Máximo de noticias nuevas a redactar por ejecución (cada 15 min).
+# Lo que no entra queda para la siguiente.
+max_historias_por_ejecucion = 30
+
+# Descargar el texto de la nota original para que la explicación sea
+# más completa (mejor calidad, un poco más de costo).
+leer_nota_completa = true
+
+# ---------------------------------------------------------------------
+#  FUENTES
+#  Cada [[fuente]] tiene:
+#   medio    -> nombre que se muestra en la web
+#   urls     -> lista de RSS; se prueban EN ORDEN y se usa el primero
+#               que funcione (los siguientes son alternativas).
+#   dominio  -> si TODOS los RSS fallan, se usa como último recurso
+#               Google News filtrado por ese dominio.
+#   muro     -> true si el medio tiene muro de pago (paywall)
+#   idioma   -> "en" o "es"
+# ---------------------------------------------------------------------
+
+# ===================== INTERNACIONALES =====================
+
+# Reuters cerró sus RSS públicos en 2020. Alternativa equivalente:
+# Google News filtrado por reuters.com (los links abren la nota de Reuters).
+[[fuente]]
+medio = "Reuters"
+urls = [
+  "https://news.google.com/rss/search?q=site:reuters.com/markets+OR+site:reuters.com/business+when:1d&hl=en-US&gl=US&ceid=US:en",
+  "https://news.google.com/rss/search?q=site:reuters.com+when:1d&hl=en-US&gl=US&ceid=US:en",
+]
+dominio = "reuters.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "Reuters"
+urls = [
+  "https://news.google.com/rss/search?q=site:reuters.com/world+OR+site:reuters.com/technology+when:1d&hl=en-US&gl=US&ceid=US:en",
+]
+dominio = "reuters.com"
+muro = false
+idioma = "en"
+
+# AP no publica RSS oficiales. Alternativa: Google News filtrado por apnews.com.
+[[fuente]]
+medio = "AP"
+urls = [
+  "https://news.google.com/rss/search?q=site:apnews.com+when:1d&hl=en-US&gl=US&ceid=US:en",
+]
+dominio = "apnews.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "Bloomberg"
+urls = ["https://feeds.bloomberg.com/markets/news.rss"]
+dominio = "bloomberg.com"
+muro = true
+idioma = "en"
+
+[[fuente]]
+medio = "Bloomberg"
+urls = ["https://feeds.bloomberg.com/economics/news.rss"]
+dominio = "bloomberg.com"
+muro = true
+idioma = "en"
+
+[[fuente]]
+medio = "Bloomberg"
+urls = ["https://feeds.bloomberg.com/technology/news.rss"]
+dominio = "bloomberg.com"
+muro = true
+idioma = "en"
+
+[[fuente]]
+medio = "Bloomberg"
+urls = ["https://feeds.bloomberg.com/politics/news.rss"]
+dominio = "bloomberg.com"
+muro = true
+idioma = "en"
+
+[[fuente]]
+medio = "Financial Times"
+urls = [
+  "https://www.ft.com/markets?format=rss",
+  "https://www.ft.com/rss/home/international",
+]
+dominio = "ft.com"
+muro = true
+idioma = "en"
+
+[[fuente]]
+medio = "Financial Times"
+urls = ["https://www.ft.com/global-economy?format=rss"]
+dominio = "ft.com"
+muro = true
+idioma = "en"
+
+[[fuente]]
+medio = "Financial Times"
+urls = ["https://www.ft.com/world?format=rss"]
+dominio = "ft.com"
+muro = true
+idioma = "en"
+
+[[fuente]]
+medio = "CNBC"
+urls = ["https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"]
+dominio = "cnbc.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "CNBC"
+urls = ["https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"]
+dominio = "cnbc.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "CNBC"
+urls = ["https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258"]
+dominio = "cnbc.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "BBC"
+urls = ["https://feeds.bbci.co.uk/news/business/rss.xml"]
+dominio = "bbc.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "BBC"
+urls = ["https://feeds.bbci.co.uk/news/world/rss.xml"]
+dominio = "bbc.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "BBC"
+urls = ["https://feeds.bbci.co.uk/news/technology/rss.xml"]
+dominio = "bbc.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "The Guardian"
+urls = ["https://www.theguardian.com/business/rss"]
+dominio = "theguardian.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "The Guardian"
+urls = ["https://www.theguardian.com/world/rss"]
+dominio = "theguardian.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "The Guardian"
+urls = ["https://www.theguardian.com/technology/rss"]
+dominio = "theguardian.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "Al Jazeera"
+urls = ["https://www.aljazeera.com/xml/rss/all.xml"]
+dominio = "aljazeera.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "DW"
+urls = [
+  "https://rss.dw.com/rdf/rss-en-bus",
+  "https://rss.dw.com/xml/rss-en-bus",
+]
+dominio = "dw.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "DW"
+urls = [
+  "https://rss.dw.com/rdf/rss-en-world",
+  "https://rss.dw.com/xml/rss-en-world",
+]
+dominio = "dw.com"
+muro = false
+idioma = "en"
+
+# ===================== TECNOLOGÍA / IA =====================
+
+[[fuente]]
+medio = "Ars Technica"
+urls = [
+  "https://feeds.arstechnica.com/arstechnica/index",
+  "https://arstechnica.com/feed/",
+]
+dominio = "arstechnica.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "The Verge"
+urls = ["https://www.theverge.com/rss/index.xml"]
+dominio = "theverge.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "TechCrunch"
+urls = ["https://techcrunch.com/feed/"]
+dominio = "techcrunch.com"
+muro = false
+idioma = "en"
+
+[[fuente]]
+medio = "MIT Technology Review"
+urls = ["https://www.technologyreview.com/feed/"]
+dominio = "technologyreview.com"
+muro = true
+idioma = "en"
+
+# ===================== ARGENTINA =====================
+
+[[fuente]]
+medio = "Ámbito"
+urls = [
+  "https://www.ambito.com/rss/pages/economia.xml",
+  "https://www.ambito.com/rss/pages/home.xml",
+]
+dominio = "ambito.com"
+muro = false
+idioma = "es"
+
+[[fuente]]
+medio = "Ámbito"
+urls = ["https://www.ambito.com/rss/pages/finanzas.xml"]
+dominio = "ambito.com"
+muro = false
+idioma = "es"
+
+[[fuente]]
+medio = "El Cronista"
+urls = [
+  "https://www.cronista.com/arc/outboundfeeds/rss/category/economia-politica/?outputType=xml",
+  "https://www.cronista.com/files/rss/economia.xml",
+]
+dominio = "cronista.com"
+muro = false
+idioma = "es"
+
+[[fuente]]
+medio = "El Cronista"
+urls = [
+  "https://www.cronista.com/arc/outboundfeeds/rss/category/finanzas-mercados/?outputType=xml",
+  "https://www.cronista.com/files/rss/finanzas.xml",
+]
+dominio = "cronista.com"
+muro = false
+idioma = "es"
+
+[[fuente]]
+medio = "Infobae"
+urls = [
+  "https://www.infobae.com/arc/outboundfeeds/rss/category/economia/",
+  "https://www.infobae.com/feeds/rss/",
+]
+dominio = "infobae.com"
+muro = false
+idioma = "es"
+
+[[fuente]]
+medio = "La Nación"
+urls = [
+  "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/economia/?outputType=xml",
+]
+dominio = "lanacion.com.ar"
+muro = true
+idioma = "es"

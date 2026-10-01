@@ -1,0 +1,19 @@
+name: Verificar fuentes RSS
+
+# Solo se ejecuta a mano: Actions -> "Verificar fuentes RSS" -> Run workflow.
+# No usa la API de Claude (no gasta nada).
+on:
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scripts/verificar_feeds.py

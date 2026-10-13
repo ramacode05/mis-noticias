@@ -28,3 +28,6 @@ tr.inactivo td { color: #999; }
 .formulario .check { font-weight: normal; }
 .error { display: block; color: #b42318; font-weight: normal; font-size: .9rem; margin-top: .2rem; }
 .acciones { display: flex; gap: 1rem; align-items: center; }
+.boton.secundario { background: #fff; color: #1f5fa8; border: 1px solid #1f5fa8; }
+.boton.secundario:hover { background: #e9f0f9; }
+td.accion { width: 1%; white-space: nowrap; }

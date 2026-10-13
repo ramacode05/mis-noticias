@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Nuevo concepto' if nuevo else 'Editar concepto' }}{% endblock %}
+{% block contenido %}
+<h1>{{ 'Nuevo concepto' if nuevo else 'Editar concepto' }}</h1>
+
+<form method="post" class="formulario">
+  <label>Descripción *
+    <textarea name="descripcion" rows="3" required maxlength="500" autofocus>{{ concepto.descripcion }}</textarea>
+    <small>Por ejemplo: Desarme y Reparación en Elásticos Delanteros Derecho</small>
+    {% if errores.descripcion %}<span class="error">{{ errores.descripcion }}</span>{% endif %}
+  </label>
+
+  <label class="check"><input type="checkbox" name="activo" value="1" {% if concepto.activo %}checked{% endif %}> Concepto activo
+    <small>(los inactivos no aparecen en la lista ni al facturar, pero no se borran)</small></label>
+
+  <div class="acciones">
+    <button type="submit" class="boton">Guardar</button>
+    {% if nuevo %}<button type="submit" class="boton secundario" name="otro" value="1">Guardar y cargar otro</button>{% endif %}
+    <a href="{{ url_for('conceptos.lista') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

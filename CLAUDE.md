@@ -34,6 +34,7 @@ facturacion/            Código de la aplicación
   esquema.sql           Tablas de la base
   validaciones.py       Validaciones (CUIT, DNI, etc.)
   clientes.py           Pantallas de clientes
+  conceptos.py          Pantallas de conceptos fijos (plantillas de detalle)
   templates/            Páginas HTML
   static/               Estilos (CSS)
 instance/               Base de datos real (NO se sube a Git)
@@ -46,6 +47,9 @@ iniciar.bat             Abre el sistema en Windows
 ## Convenciones
 
 - Montos: guardar como **enteros en centavos** para evitar errores de redondeo.
+- Los precios se cargan **sin IVA** (como en la web de ARCA); el sistema calcula IVA 21% y total.
+- Cambios en la base: solo agregar tablas/columnas que se creen solas al arrancar, sin borrar
+  datos existentes (la base del usuario en `instance/` ya tiene información real).
 - Fechas: guardar como texto ISO `AAAA-MM-DD`.
 - CUIT: guardar solo dígitos (11), mostrar como `XX-XXXXXXXX-X`. Validar dígito verificador.
 - Facturas emitidas no se borran: se anulan con nota de crédito.
@@ -56,8 +60,9 @@ iniciar.bat             Abre el sistema en Windows
 1. **Base y clientes** ✅
    Proyecto, base de datos, pantalla de clientes: alta, edición, búsqueda.
    Condición frente al IVA y CUIT/DNI validados. Muestra qué letra de factura le corresponde.
-2. **Plantillas de conceptos**
-   ABM de conceptos fijos (descripción + importe sugerido) para reutilizar en facturas.
+2. **Plantillas de conceptos** ✅
+   ABM de conceptos fijos: solo el texto (el precio cambia en cada factura).
+   Ej.: "Desarme y Reparación en Elásticos Delanteros Derecho". Búsqueda por palabras.
 3. **Facturas (de prueba, sin ARCA)**
    Alta de factura A/B: cliente, fecha, renglones de texto libre o desde plantilla,
    neto + IVA 21% + total. Numeración por punto de venta y tipo. Marcadas como "PRUEBA".

@@ -19,3 +19,16 @@ CREATE TABLE IF NOT EXISTS clientes (
 -- No puede haber dos clientes con el mismo CUIT o DNI.
 CREATE UNIQUE INDEX IF NOT EXISTS clientes_doc_unico
     ON clientes (tipo_doc, nro_doc) WHERE tipo_doc <> 'SIN';
+
+-- Conceptos fijos que se repiten en las facturas. Solo el texto: el precio se pone en cada factura.
+CREATE TABLE IF NOT EXISTS conceptos (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    descripcion     TEXT NOT NULL,
+    activo          INTEGER NOT NULL DEFAULT 1,
+    creado          TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    modificado      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- No puede haber dos conceptos con el mismo texto (sin importar mayúsculas).
+CREATE UNIQUE INDEX IF NOT EXISTS conceptos_descripcion_unica
+    ON conceptos (descripcion COLLATE NOCASE);

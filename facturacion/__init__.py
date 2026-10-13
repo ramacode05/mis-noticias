@@ -15,9 +15,10 @@ def create_app(config=None):
 
     os.makedirs(app.instance_path, exist_ok=True)
 
-    from . import db, clientes
+    from . import db, clientes, conceptos
     db.init_app(app)
     app.register_blueprint(clientes.bp)
+    app.register_blueprint(conceptos.bp)
 
     @app.route("/")
     def inicio():

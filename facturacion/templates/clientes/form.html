@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Nuevo cliente' if nuevo else 'Editar cliente' }}{% endblock %}
+{% macro error(campo) %}{% if errores[campo] %}<span class="error">{{ errores[campo] }}</span>{% endif %}{% endmacro %}
+{% block contenido %}
+<h1>{{ 'Nuevo cliente' if nuevo else 'Editar cliente' }}</h1>
+
+{% if errores %}<div class="aviso error">Revisá los campos marcados en rojo.</div>{% endif %}
+
+<form method="post" class="formulario">
+  <label>Razón social / Nombre *
+    <input name="razon_social" value="{{ cliente.razon_social }}" required maxlength="200">
+    {{ error('razon_social') }}
+  </label>
+
+  <label>Condición frente al IVA *
+    <select name="condicion_iva" id="condicion_iva">
+      {% for codigo, nombre in CONDICIONES_IVA.items() %}
+        <option value="{{ codigo }}" {% if cliente.condicion_iva == codigo %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+    <small>Se le emite <strong id="letra">Factura {{ letra_factura(cliente.condicion_iva) }}</strong>.</small>
+    {{ error('condicion_iva') }}
+  </label>
+
+  <div class="fila">
+    <label>Tipo de documento *
+      <select name="tipo_doc">
+        {% for codigo, nombre in TIPOS_DOC.items() %}
+          <option value="{{ codigo }}" {% if cliente.tipo_doc == codigo %}selected{% endif %}>{{ nombre }}</option>
+        {% endfor %}
+      </select>
+      {{ error('tipo_doc') }}
+    </label>
+    <label>Número
+      <input name="nro_doc" value="{{ formatear_doc(cliente) }}" placeholder="Ej: 20-12345678-6" maxlength="20">
+      {{ error('nro_doc') }}
+    </label>
+  </div>
+
+  <div class="fila">
+    <label>Domicilio
+      <input name="domicilio" value="{{ cliente.domicilio }}" maxlength="200">
+    </label>
+    <label>Localidad
+      <input name="localidad" value="{{ cliente.localidad }}" maxlength="100">
+    </label>
+  </div>
+
+  <div class="fila">
+    <label>Email
+      <input name="email" type="email" value="{{ cliente.email }}" maxlength="200">
+      {{ error('email') }}
+    </label>
+    <label>Teléfono
+      <input name="telefono" value="{{ cliente.telefono }}" maxlength="50">
+    </label>
+  </div>
+
+  <label>Observaciones
+    <textarea name="observaciones" rows="3">{{ cliente.observaciones }}</textarea>
+  </label>
+
+  <label class="check"><input type="checkbox" name="activo" value="1" {% if cliente.activo %}checked{% endif %}> Cliente activo
+    <small>(los inactivos no aparecen en la lista, pero no se borran)</small></label>
+
+  <div class="acciones">
+    <button type="submit" class="boton">Guardar</button>
+    <a href="{{ url_for('clientes.lista') }}">Cancelar</a>
+  </div>
+</form>
+
+<script>
+  // Actualiza la letra de factura al cambiar la condición frente al IVA.
+  document.getElementById('condicion_iva').addEventListener('change', function () {
+    document.getElementById('letra').textContent = 'Factura ' + (this.value === 'RI' ? 'A' : 'B');
+  });
+</script>
+{% endblock %}

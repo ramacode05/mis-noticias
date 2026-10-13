@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titulo %}Clientes{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Clientes</h1>
+  <a class="boton" href="{{ url_for('clientes.nuevo') }}">+ Nuevo cliente</a>
+</div>
+
+<form class="busqueda" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre, CUIT/DNI, email o localidad" autofocus>
+  <label><input type="checkbox" name="inactivos" value="1" {% if ver_inactivos %}checked{% endif %}> Ver inactivos</label>
+  <button type="submit">Buscar</button>
+  {% if q or ver_inactivos %}<a href="{{ url_for('clientes.lista') }}">Limpiar</a>{% endif %}
+</form>
+
+{% if clientes %}
+<table>
+  <thead>
+    <tr><th>Razón social</th><th>Documento</th><th>Condición IVA</th><th>Factura</th><th>Localidad</th><th>Teléfono</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for c in clientes %}
+    <tr class="{{ '' if c.activo else 'inactivo' }}">
+      <td>{{ c.razon_social }}{% if not c.activo %} <small>(inactivo)</small>{% endif %}</td>
+      <td>{% if c.tipo_doc != 'SIN' %}{{ c.tipo_doc }} {{ formatear_doc(c) }}{% else %}—{% endif %}</td>
+      <td>{{ CONDICIONES_IVA[c.condicion_iva] }}</td>
+      <td><span class="letra">{{ letra_factura(c.condicion_iva) }}</span></td>
+      <td>{{ c.localidad }}</td>
+      <td>{{ c.telefono }}</td>
+      <td><a href="{{ url_for('clientes.editar', id=c.id) }}">Editar</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="nota">{{ clientes|length }} cliente(s).</p>
+{% else %}
+<p class="vacio">{% if q %}No se encontraron clientes para «{{ q }}».{% else %}Todavía no hay clientes cargados.{% endif %}</p>
+{% endif %}
+{% endblock %}

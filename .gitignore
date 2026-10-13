@@ -1,0 +1,8 @@
+# Entorno de Python
+.venv/
+__pycache__/
+*.pyc
+
+# Base de datos real y backups (no se suben a Git)
+instance/
+backups/

@@ -1,5 +1,6 @@
 """Sistema de facturación y cuentas corrientes."""
 import os
+from datetime import date
 
 from flask import Flask, redirect, url_for
 
@@ -15,13 +16,23 @@ def create_app(config=None):
 
     os.makedirs(app.instance_path, exist_ok=True)
 
-    from . import db, clientes, conceptos
+    from . import db, clientes, conceptos, configuracion, facturas
+    from .importes import formato_cantidad, formato_pesos
     db.init_app(app)
     app.register_blueprint(clientes.bp)
     app.register_blueprint(conceptos.bp)
+    app.register_blueprint(facturas.bp)
+    app.register_blueprint(configuracion.bp)
+
+    # Formatos para mostrar en las páginas.
+    app.add_template_filter(formato_pesos, "pesos")
+    app.add_template_filter(formato_cantidad, "cantidad")
+    app.add_template_filter(lambda iso: date.fromisoformat(iso).strftime("%d/%m/%Y") if iso else "",
+                            "fecha")
+    app.add_template_filter(lambda f: f"{f['punto_venta']:05d}-{f['numero']:08d}", "nro_cbte")
 
     @app.route("/")
     def inicio():
-        return redirect(url_for("clientes.lista"))
+        return redirect(url_for("facturas.lista"))
 
     return app

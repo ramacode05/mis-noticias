@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block titulo %}Factura {{ f.letra }} {{ f|nro_cbte }}{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Factura {{ f.letra }} N° {{ f|nro_cbte }} {% if f.prueba %}<span class="etiqueta-prueba">PRUEBA</span>{% endif %}</h1>
+  <a class="boton" href="{{ url_for('facturas.nueva') }}">+ Nueva factura</a>
+</div>
+
+<div class="formulario ancho">
+  <div class="fila datos">
+    <div>
+      <strong>Cliente</strong><br>
+      {{ f.cliente_razon_social }}<br>
+      {% if f.cliente_tipo_doc != 'SIN' %}{{ f.cliente_tipo_doc }} {{ formatear_doc({'tipo_doc': f.cliente_tipo_doc, 'nro_doc': f.cliente_nro_doc}) }}<br>{% endif %}
+      {{ CONDICIONES_IVA[f.cliente_condicion_iva] }}<br>
+      {{ f.cliente_domicilio }}
+    </div>
+    <div>
+      <strong>Fecha:</strong> {{ f.fecha|fecha }}<br>
+      <strong>Se factura:</strong> {{ CONCEPTOS[f.concepto] }}<br>
+      {% if f.serv_desde %}
+        <strong>Período:</strong> {{ f.serv_desde|fecha }} al {{ f.serv_hasta|fecha }}<br>
+        <strong>Vencimiento del pago:</strong> {{ f.vto_pago|fecha }}<br>
+      {% endif %}
+      <strong>Condición de venta:</strong> {{ f.condicion_venta }}<br>
+      <strong>CAE:</strong> {{ f.cae or 'sin CAE (factura de prueba)' }}
+    </div>
+  </div>
+
+  <table class="renglones">
+    <thead><tr><th>Descripción</th><th class="num">Cantidad</th><th class="num">Precio unitario</th><th class="num">Subtotal</th></tr></thead>
+    <tbody>
+    {% for r in renglones %}
+      <tr><td>{{ r.descripcion }}</td><td class="num">{{ r.cantidad|cantidad }}</td><td class="num">{{ r.precio_unitario|pesos }}</td><td class="num">{{ r.subtotal|pesos }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totales">
+    <tr><td>Neto gravado</td><td class="num">{{ f.neto|pesos }}</td></tr>
+    <tr><td>IVA 21%</td><td class="num">{{ f.iva|pesos }}</td></tr>
+    <tr class="total"><td>Total</td><td class="num">{{ f.total|pesos }}</td></tr>
+  </table>
+
+  {% if f.observaciones %}<p><strong>Observaciones:</strong> {{ f.observaciones }}</p>{% endif %}
+</div>
+
+<div class="acciones pie">
+  <a href="{{ url_for('facturas.lista') }}">← Volver a facturas</a>
+  {% if f.prueba %}
+  <form method="post" action="{{ url_for('facturas.eliminar', id=f.id) }}"
+        onsubmit="return confirm('¿Eliminar esta factura de prueba? No se puede deshacer.');">
+    <button type="submit" class="boton peligro">Eliminar factura de prueba</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

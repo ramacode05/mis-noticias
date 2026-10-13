@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Configuración{% endblock %}
+{% block contenido %}
+<h1>Configuración</h1>
+<form method="post" class="formulario">
+  <label>Punto de venta *
+    <input name="punto_venta" value="{{ punto_venta }}" inputmode="numeric" maxlength="5">
+    <small>El número de punto de venta que usás en ARCA para facturas electrónicas (el que aparece adelante del número de factura, por ejemplo 0001 en 0001-00000123).</small>
+    {% if errores.punto_venta %}<span class="error">{{ errores.punto_venta }}</span>{% endif %}
+  </label>
+  <div class="acciones">
+    <button type="submit" class="boton">Guardar</button>
+  </div>
+</form>
+{% endblock %}

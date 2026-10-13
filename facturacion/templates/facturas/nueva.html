@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block titulo %}Nueva factura{% endblock %}
+{% macro error(campo) %}{% if errores[campo] %}<span class="error">{{ errores[campo] }}</span>{% endif %}{% endmacro %}
+{% block contenido %}
+<h1>Nueva factura <span id="titulo-letra"></span> <span class="etiqueta-prueba">PRUEBA</span></h1>
+<p class="nota">Punto de venta {{ "%05d"|format(punto_venta) }}. Mientras no esté conectado ARCA, las facturas son de prueba (sin CAE).</p>
+
+{% if errores %}<div class="aviso error">Revisá los campos marcados en rojo.</div>{% endif %}
+
+<form method="post" class="formulario ancho" id="form-factura">
+  <div class="fila">
+    <label class="doble">Cliente *
+      <select name="cliente_id" id="cliente" required>
+        <option value="">— Elegí el cliente —</option>
+        {% for c in clientes %}
+          <option value="{{ c.id }}" data-letra="{{ letra_factura(c.condicion_iva) }}"
+            {% if datos.cliente_id == c.id %}selected{% endif %}>
+            {{ c.razon_social }}{% if c.tipo_doc != 'SIN' %} — {{ formatear_doc(c) }}{% endif %} ({{ CONDICIONES_IVA[c.condicion_iva] }})
+          </option>
+        {% endfor %}
+      </select>
+      <small id="aviso-letra">Elegí un cliente para ver qué factura le corresponde.</small>
+      {{ error('cliente_id') }}
+      {% if not clientes %}<span class="error">No hay clientes cargados. <a href="{{ url_for('clientes.nuevo') }}">Cargá uno primero</a>.</span>{% endif %}
+    </label>
+    <label>Fecha *
+      <input type="date" name="fecha" id="fecha" value="{{ datos.fecha }}" required>
+      {{ error('fecha') }}
+    </label>
+  </div>
+
+  <div class="fila">
+    <label>Se factura *
+      <select name="concepto" id="concepto">
+        {% for codigo, nombre in CONCEPTOS.items() %}
+          <option value="{{ codigo }}" {% if datos.concepto == codigo %}selected{% endif %}>{{ nombre }}</option>
+        {% endfor %}
+      </select>
+      {{ error('concepto') }}
+    </label>
+    <label>Condición de venta *
+      <select name="condicion_venta">
+        {% for cv in CONDICIONES_VENTA %}
+          <option {% if datos.condicion_venta == cv %}selected{% endif %}>{{ cv }}</option>
+        {% endfor %}
+      </select>
+      {{ error('condicion_venta') }}
+    </label>
+  </div>
+
+  <div class="fila" id="fechas-servicio">
+    <label>Servicio desde *
+      <input type="date" name="serv_desde" value="{{ datos.serv_desde }}">
+      {{ error('serv_desde') }}
+    </label>
+    <label>Servicio hasta *
+      <input type="date" name="serv_hasta" value="{{ datos.serv_hasta }}">
+    </label>
+    <label>Vencimiento del pago *
+      <input type="date" name="vto_pago" value="{{ datos.vto_pago }}">
+      {{ error('vto_pago') }}
+    </label>
+  </div>
+
+  <h2>Detalle <small>(precios sin IVA)</small></h2>
+  {% for e in errores.renglones or [] %}<span class="error">{{ e }}</span>{% endfor %}
+
+  <table class="renglones">
+    <thead>
+      <tr><th>Descripción</th><th class="num">Cantidad</th><th class="num">Precio unitario</th><th class="num">Subtotal</th><th></th></tr>
+    </thead>
+    <tbody id="renglones">
+      {% for r in renglones %}
+      <tr>
+        <td><input name="descripcion" value="{{ r.descripcion }}" maxlength="1000" placeholder="{{ 'Ej: Int. AB123CD' if loop.first else '' }}"></td>
+        <td><input name="cantidad" value="{{ r.cantidad }}" class="num corto" placeholder="1" inputmode="decimal"></td>
+        <td><input name="precio" value="{{ r.precio }}" class="num" placeholder="0,00" inputmode="decimal"></td>
+        <td class="num subtotal"></td>
+        <td><button type="button" class="quitar" title="Quitar renglón">✕</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="agregar">
+    <button type="button" class="boton secundario" id="agregar-renglon">+ Agregar renglón</button>
+    <select id="agregar-concepto">
+      <option value="">+ Agregar concepto fijo…</option>
+      {% for c in conceptos %}<option>{{ c.descripcion }}</option>{% endfor %}
+    </select>
+  </div>
+
+  <table class="totales">
+    <tr><td>Neto gravado</td><td class="num" id="total-neto">$ 0,00</td></tr>
+    <tr><td>IVA 21%</td><td class="num" id="total-iva">$ 0,00</td></tr>
+    <tr class="total"><td>Total</td><td class="num" id="total-total">$ 0,00</td></tr>
+  </table>
+
+  <label>Observaciones <small>(uso interno, no salen en la factura)</small>
+    <textarea name="observaciones" rows="2">{{ datos.observaciones }}</textarea>
+  </label>
+
+  <div class="acciones">
+    <button type="submit" class="boton">Guardar factura</button>
+    <a href="{{ url_for('facturas.lista') }}">Cancelar</a>
+  </div>
+</form>
+
+<script src="{{ url_for('static', filename='factura.js') }}"></script>
+{% endblock %}

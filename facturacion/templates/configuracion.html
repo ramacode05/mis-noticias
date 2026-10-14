@@ -3,10 +3,15 @@
 {% block contenido %}
 <h1>Configuración</h1>
 <form method="post" class="formulario">
-  <label>Punto de venta *
-    <input name="punto_venta" value="{{ punto_venta }}" inputmode="numeric" maxlength="5">
-    <small>El número de punto de venta que usás en ARCA para facturas electrónicas (el que aparece adelante del número de factura, por ejemplo 0001 en 0001-00000123).</small>
+  <label>Punto de venta de las facturas *
+    <input name="punto_venta" value="{{ valores.punto_venta }}" inputmode="numeric" maxlength="5">
+    <small>El número de punto de venta que usás en ARCA para las facturas electrónicas (el que va adelante del número de factura, por ejemplo 00002 en 00002-00000123).</small>
     {% if errores.punto_venta %}<span class="error">{{ errores.punto_venta }}</span>{% endif %}
+  </label>
+  <label>Punto de venta de los remitos *
+    <input name="remito_punto_venta" value="{{ valores.remito_punto_venta }}" inputmode="numeric" maxlength="5">
+    <small>El que va adelante del número de remito (por ejemplo 00001 en 00001-00006535). Se usa en el paso 2 de cada factura.</small>
+    {% if errores.remito_punto_venta %}<span class="error">{{ errores.remito_punto_venta }}</span>{% endif %}
   </label>
   <div class="acciones">
     <button type="submit" class="boton">Guardar</button>

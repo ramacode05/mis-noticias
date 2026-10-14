@@ -1,110 +1,260 @@
 {% extends "base.html" %}
-{% block titulo %}Nueva factura{% endblock %}
+{% block titulo %}Nueva factura{% if letra %} {{ letra }}{% endif %} - Paso {{ paso }}{% endblock %}
+
 {% macro error(campo) %}{% if errores[campo] %}<span class="error">{{ errores[campo] }}</span>{% endif %}{% endmacro %}
+
+{# Datos de los otros pasos: viajan ocultos hasta confirmar. #}
+{% macro ocultos() %}
+  {# Botón invisible: la tecla Enter usa el primer botón del formulario (avanzar, nunca volver). #}
+  <button type="submit" name="accion" value="{{ 'continuar' if paso < 4 else 'nada' }}" class="enter-oculto" tabindex="-1" aria-hidden="true"></button>
+  <input type="hidden" name="token" value="{{ datos.token }}">
+  <input type="hidden" name="paso" value="{{ paso }}">
+  {% for campo in ('fecha', 'concepto', 'serv_desde', 'serv_hasta', 'vto_pago') if paso != 1 %}
+    <input type="hidden" name="{{ campo }}" value="{{ datos[campo] }}">
+  {% endfor %}
+  {% for campo in ('cliente_id', 'remito_numero', 'remito_confirmado') if paso != 2 %}
+    <input type="hidden" name="{{ campo }}" value="{{ datos[campo] }}">
+  {% endfor %}
+  {% if paso != 3 %}
+    <input type="hidden" name="observaciones" value="{{ datos.observaciones }}">
+    {% for r in datos.renglones %}
+      <input type="hidden" name="descripcion" value="{{ r.descripcion }}">
+      <input type="hidden" name="cantidad" value="{{ r.cantidad }}">
+      <input type="hidden" name="precio" value="{{ r.precio }}">
+    {% endfor %}
+  {% endif %}
+{% endmacro %}
+
+{% macro botones(siguiente='Continuar >') %}
+  <div class="rcel-botones">
+    {% if paso > 1 %}<button type="submit" name="accion" value="volver" class="rcel-boton" formnovalidate>&lt; Volver</button>{% endif %}
+    <button type="submit" name="accion" value="{{ 'confirmar' if paso == 4 else 'continuar' }}"
+            class="rcel-boton {{ 'principal' if paso == 4 else '' }}" id="boton-siguiente">{{ siguiente }}</button>
+  </div>
+{% endmacro %}
+
 {% block contenido %}
-<h1>Nueva factura <span id="titulo-letra"></span> <span class="etiqueta-prueba">PRUEBA</span></h1>
-<p class="nota">Punto de venta {{ "%05d"|format(punto_venta) }}. Mientras no esté conectado ARCA, las facturas son de prueba (sin CAE).</p>
+<div class="rcel">
+  <div class="rcel-titulo">
+    <div>GENERACIÓN DE COMPROBANTES - <span id="titulo-comprobante">FACTURA{% if letra %} {{ letra }}{% endif %}</span>
+      <span class="etiqueta-prueba">PRUEBA</span></div>
+    <div class="rcel-subtitulo">{{ PASOS[paso]|upper }} (PASO {{ paso }} DE 4)</div>
+  </div>
+  <div class="rcel-puntos" aria-label="Paso {{ paso }} de 4">
+    {% for n in PASOS %}<span class="{{ 'actual' if n == paso else ('hecho' if n < paso else '') }}" title="{{ PASOS[n] }}"></span>{% endfor %}
+  </div>
 
-{% if errores %}<div class="aviso error">Revisá los campos marcados en rojo.</div>{% endif %}
+  {% if errores and not errores.nuevo_cliente %}<div class="aviso error">Revisá los datos marcados en rojo.</div>{% endif %}
 
-<form method="post" class="formulario ancho" id="form-factura">
-  <div class="fila">
-    <label class="doble">Cliente *
-      <select name="cliente_id" id="cliente" required>
-        <option value="">— Elegí el cliente —</option>
-        {% for c in clientes %}
-          <option value="{{ c.id }}" data-letra="{{ letra_factura(c.condicion_iva) }}"
-            {% if datos.cliente_id == c.id %}selected{% endif %}>
-            {{ c.razon_social }}{% if c.tipo_doc != 'SIN' %} — {{ formatear_doc(c) }}{% endif %} ({{ CONDICIONES_IVA[c.condicion_iva] }})
-          </option>
+  <form method="post" action="{{ url_for('facturas.nueva') }}" id="form-factura" autocomplete="off">
+    {{ ocultos() }}
+
+    {# ---------------------------------------------------------------- PASO 1 #}
+    {% if paso == 1 %}
+    <div class="rcel-campos">
+      <label for="fecha">Fecha del Comprobante</label>
+      <div><input type="date" name="fecha" id="fecha" value="{{ datos.fecha }}">{{ error('fecha') }}</div>
+
+      <label for="concepto">Conceptos a incluir</label>
+      <div>
+        <select name="concepto" id="concepto">
+          {% for codigo, nombre in CONCEPTOS.items() %}
+            <option value="{{ codigo }}" {% if datos.concepto == codigo|string %}selected{% endif %}>{{ nombre }}</option>
+          {% endfor %}
+        </select>{{ error('concepto') }}
+      </div>
+    </div>
+
+    <fieldset class="rcel-grupo" id="fechas-servicio">
+      <legend>Período Facturado</legend>
+      <div class="rcel-campos">
+        <label for="serv_desde">Desde</label>
+        <div><input type="date" name="serv_desde" id="serv_desde" value="{{ datos.serv_desde }}">{{ error('serv_desde') }}</div>
+        <label for="serv_hasta">Hasta</label>
+        <div><input type="date" name="serv_hasta" id="serv_hasta" value="{{ datos.serv_hasta }}"></div>
+        <label for="vto_pago">Vto. para el Pago</label>
+        <div><input type="date" name="vto_pago" id="vto_pago" value="{{ datos.vto_pago }}">{{ error('vto_pago') }}</div>
+      </div>
+    </fieldset>
+    {{ botones() }}
+
+    {# ---------------------------------------------------------------- PASO 2 #}
+    {% elif paso == 2 %}
+    <input type="hidden" name="cliente_id" id="cliente_id" value="{{ datos.cliente_id }}">
+
+    <div class="rcel-campos">
+      <label for="buscar-cliente">Buscar cliente</label>
+      <div class="buscador">
+        <input type="search" id="buscar-cliente" placeholder="Escribí parte del nombre o del CUIT" {% if not cliente %}autofocus{% endif %}>
+        <ul id="resultados-cliente" class="resultados" hidden></ul>
+        {{ error('cliente_id') }}
+      </div>
+    </div>
+
+    <fieldset class="rcel-grupo">
+      <legend>Cliente</legend>
+      <div class="rcel-campos">
+        <label>Condición frente al IVA</label><div><input id="c-condicion" readonly value="{{ CONDICIONES_IVA[cliente.condicion_iva] if cliente else '' }}"></div>
+        <label>CUIT / Documento</label><div><input id="c-documento" readonly value="{% if cliente and cliente.tipo_doc != 'SIN' %}{{ cliente.tipo_doc }} {{ formatear_doc(cliente) }}{% endif %}"></div>
+        <label>Razón Social</label><div><input id="c-razon" readonly value="{{ cliente.razon_social if cliente else '' }}"></div>
+        <label>Domicilio Comercial</label><div><input id="c-domicilio" readonly value="{{ [cliente.domicilio, cliente.localidad]|select|join(', ') if cliente else '' }}"></div>
+        <label>Email</label><div><input id="c-email" readonly value="{{ cliente.email if cliente else '' }}"></div>
+        <label>Comprobante</label><div><strong id="c-letra">{{ 'Factura ' ~ letra if letra else '—' }}</strong></div>
+      </div>
+    </fieldset>
+
+    <details class="rcel-grupo nuevo-cliente" {% if errores.nuevo_cliente %}open{% endif %}>
+      <summary>¿No está en la lista? Cargar cliente nuevo</summary>
+      {% set nc = nuevo_cliente %}{% set enc = errores.nuevo_cliente or {} %}
+      {% if enc %}<div class="aviso error">Revisá los datos del cliente nuevo.</div>{% endif %}
+      <div class="rcel-campos">
+        <label>Razón Social *</label>
+        <div><input name="nc_razon_social" value="{{ nc.razon_social }}" maxlength="200">{% if enc.razon_social %}<span class="error">{{ enc.razon_social }}</span>{% endif %}</div>
+        <label>Condición frente al IVA *</label>
+        <div><select name="nc_condicion_iva">
+          {% for codigo, nombre in CONDICIONES_IVA.items() %}<option value="{{ codigo }}" {% if (nc.condicion_iva or 'RI') == codigo %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+        </select></div>
+        <label>Tipo de documento *</label>
+        <div><select name="nc_tipo_doc">
+          {% for codigo, nombre in TIPOS_DOC.items() %}<option value="{{ codigo }}" {% if (nc.tipo_doc or 'CUIT') == codigo %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+        </select>{% if enc.tipo_doc %}<span class="error">{{ enc.tipo_doc }}</span>{% endif %}</div>
+        <label>Número</label>
+        <div><input name="nc_nro_doc" value="{{ nc.nro_doc }}" placeholder="Ej: 30-71234567-1" maxlength="20">{% if enc.nro_doc %}<span class="error">{{ enc.nro_doc }}</span>{% endif %}</div>
+        <label>Domicilio</label><div><input name="nc_domicilio" value="{{ nc.domicilio }}" maxlength="200"></div>
+        <label>Localidad</label><div><input name="nc_localidad" value="{{ nc.localidad }}" maxlength="100"></div>
+        <label>Email</label><div><input name="nc_email" value="{{ nc.email }}" maxlength="200">{% if enc.email %}<span class="error">{{ enc.email }}</span>{% endif %}</div>
+        <span></span><div><button type="submit" name="accion" value="crear_cliente" class="rcel-boton" formnovalidate>Guardar cliente y elegirlo</button></div>
+      </div>
+    </details>
+
+    <fieldset class="rcel-grupo">
+      <legend>Condiciones de Venta</legend>
+      <div class="rcel-campos">
+        <label>Condición de venta</label><div><input readonly value="{{ CONDICION_VENTA }}"></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="rcel-grupo">
+      <legend>Comprobante Asociado <span class="opcional">(opcional)</span></legend>
+      <div class="rcel-campos">
+        <label for="remito_numero">Remito R</label>
+        <div>
+          <span class="pto-vta">{{ "%05d"|format(remito_pto_vta) }}</span> -
+          <input name="remito_numero" id="remito_numero" value="{{ datos.remito_numero }}" class="corto" inputmode="numeric" maxlength="8" placeholder="Número">
+          {{ error('remito_numero') }}
+          {% if errores.remito_repetido %}
+            <label class="check confirmar-remito"><input type="checkbox" name="remito_confirmado" value="1"> Usar este remito igual</label>
+          {% elif datos.remito_confirmado %}
+            <input type="hidden" name="remito_confirmado" value="{{ datos.remito_confirmado }}">
+          {% endif %}
+        </div>
+      </div>
+    </fieldset>
+    {{ botones() }}
+
+    {# ---------------------------------------------------------------- PASO 3 #}
+    {% elif paso == 3 %}
+    {% for e in errores.renglones or [] %}<span class="error">{{ e }}</span>{% endfor %}
+    <table class="rcel-renglones">
+      <thead>
+        <tr><th>Producto/Servicio</th><th class="num">Cant.</th><th class="num">Prec. Unitario</th>
+            <th class="num">Subtotal</th><th class="num">Alícuota IVA</th><th class="num">Importe IVA</th>
+            <th class="num">Subtotal c/IVA</th><th>Eliminar</th></tr>
+      </thead>
+      <tbody id="renglones">
+        {% for r in datos.renglones %}
+        <tr>
+          <td><textarea name="descripcion" rows="1" maxlength="1000">{{ r.descripcion }}</textarea></td>
+          <td><input name="cantidad" value="{{ r.cantidad }}" class="num cant" placeholder="1" inputmode="decimal"></td>
+          <td><input name="precio" value="{{ r.precio }}" class="num" placeholder="0,00" inputmode="decimal"></td>
+          <td class="num subtotal"></td>
+          <td class="num">21%</td>
+          <td class="num importe-iva"></td>
+          <td class="num subtotal-iva"></td>
+          <td class="centro"><button type="button" class="quitar" title="Eliminar línea">X</button></td>
+        </tr>
         {% endfor %}
-      </select>
-      <small id="aviso-letra">Elegí un cliente para ver qué factura le corresponde.</small>
-      {{ error('cliente_id') }}
-      {% if not clientes %}<span class="error">No hay clientes cargados. <a href="{{ url_for('clientes.nuevo') }}">Cargá uno primero</a>.</span>{% endif %}
-    </label>
-    <label>Fecha *
-      <input type="date" name="fecha" id="fecha" value="{{ datos.fecha }}" required>
-      {{ error('fecha') }}
-    </label>
-  </div>
+      </tbody>
+    </table>
 
-  <div class="fila">
-    <label>Se factura *
-      <select name="concepto" id="concepto">
-        {% for codigo, nombre in CONCEPTOS.items() %}
-          <option value="{{ codigo }}" {% if datos.concepto == codigo %}selected{% endif %}>{{ nombre }}</option>
+    <div class="agregar">
+      <button type="button" class="rcel-boton" id="agregar-renglon">Agregar línea descripción</button>
+      {% if conceptos %}
+      <select id="agregar-concepto">
+        <option value="">+ Agregar concepto fijo…</option>
+        {% for c in conceptos %}<option>{{ c.descripcion }}</option>{% endfor %}
+      </select>
+      {% endif %}
+    </div>
+
+    <div class="rcel-pie-operacion">
+      <label class="observaciones">Observaciones <small>(uso interno, no salen en la factura)</small>
+        <textarea name="observaciones" rows="3" maxlength="1000">{{ datos.observaciones }}</textarea>
+      </label>
+      <table class="totales">
+        <tr><td>Importe Neto Gravado: $</td><td class="num" id="total-neto">0,00</td></tr>
+        <tr><td>IVA 21%: $</td><td class="num" id="total-iva">0,00</td></tr>
+        <tr class="total"><td>Importe Total: $</td><td class="num" id="total-total">0,00</td></tr>
+      </table>
+    </div>
+    {{ botones() }}
+
+    {# ---------------------------------------------------------------- PASO 4 #}
+    {% else %}
+    <div class="resumen">
+      <section>
+        <h2>Datos de emisión <button type="submit" name="accion" value="ir_1" class="modificar" formnovalidate>Modificar</button></h2>
+        <dl>
+          <dt>Punto de venta</dt><dd>{{ "%05d"|format(punto_venta) }}</dd>
+          <dt>Fecha del comprobante</dt><dd>{{ datos.fecha|fecha }}</dd>
+          <dt>Conceptos a incluir</dt><dd>{{ CONCEPTOS[datos.concepto|int] }}</dd>
+          {% if datos.concepto != '1' %}
+          <dt>Período facturado</dt><dd>{{ datos.serv_desde|fecha }} al {{ datos.serv_hasta|fecha }}</dd>
+          <dt>Vto. para el pago</dt><dd>{{ datos.vto_pago|fecha }}</dd>
+          {% endif %}
+        </dl>
+      </section>
+      <section>
+        <h2>Datos del receptor <button type="submit" name="accion" value="ir_2" class="modificar" formnovalidate>Modificar</button></h2>
+        <dl>
+          <dt>Razón social</dt><dd>{{ cliente.razon_social }}</dd>
+          <dt>Condición frente al IVA</dt><dd>{{ CONDICIONES_IVA[cliente.condicion_iva] }}</dd>
+          {% if cliente.tipo_doc != 'SIN' %}<dt>{{ cliente.tipo_doc }}</dt><dd>{{ formatear_doc(cliente) }}</dd>{% endif %}
+          <dt>Domicilio</dt><dd>{{ [cliente.domicilio, cliente.localidad]|select|join(', ') or '—' }}</dd>
+          <dt>Condición de venta</dt><dd>{{ CONDICION_VENTA }}</dd>
+          <dt>Remito asociado</dt><dd>{% if datos.remito_numero %}Remito R {{ "%05d"|format(remito_pto_vta) }}-{{ "%08d"|format(datos.remito_numero|int) }}{% else %}—{% endif %}</dd>
+        </dl>
+      </section>
+    </div>
+
+    <section class="resumen">
+      <h2>Datos de la operación <button type="submit" name="accion" value="ir_3" class="modificar" formnovalidate>Modificar</button></h2>
+      <table class="rcel-renglones">
+        <thead><tr><th>Producto/Servicio</th><th class="num">Cant.</th><th class="num">Prec. Unitario</th><th class="num">Subtotal</th><th class="num">Alícuota IVA</th></tr></thead>
+        <tbody>
+        {% for r in renglones %}
+          <tr><td>{{ r.descripcion }}</td><td class="num">{{ r.cantidad|cantidad }}</td><td class="num">{{ r.precio_unitario|pesos }}</td><td class="num">{{ r.subtotal|pesos }}</td><td class="num">21%</td></tr>
         {% endfor %}
-      </select>
-      {{ error('concepto') }}
-    </label>
-    <label>Condición de venta *
-      <select name="condicion_venta">
-        {% for cv in CONDICIONES_VENTA %}
-          <option {% if datos.condicion_venta == cv %}selected{% endif %}>{{ cv }}</option>
-        {% endfor %}
-      </select>
-      {{ error('condicion_venta') }}
-    </label>
-  </div>
+        </tbody>
+      </table>
+      <table class="totales">
+        <tr><td>Importe Neto Gravado:</td><td class="num">{{ totales.neto|pesos }}</td></tr>
+        <tr><td>IVA 21%:</td><td class="num">{{ totales.iva|pesos }}</td></tr>
+        <tr class="total"><td>Importe Total:</td><td class="num">{{ totales.total|pesos }}</td></tr>
+      </table>
+      {% if datos.observaciones %}<p><strong>Observaciones:</strong> {{ datos.observaciones }}</p>{% endif %}
+    </section>
 
-  <div class="fila" id="fechas-servicio">
-    <label>Servicio desde *
-      <input type="date" name="serv_desde" value="{{ datos.serv_desde }}">
-      {{ error('serv_desde') }}
-    </label>
-    <label>Servicio hasta *
-      <input type="date" name="serv_hasta" value="{{ datos.serv_hasta }}">
-    </label>
-    <label>Vencimiento del pago *
-      <input type="date" name="vto_pago" value="{{ datos.vto_pago }}">
-      {{ error('vto_pago') }}
-    </label>
-  </div>
+    <p class="nota centro">Revisá los datos. Al confirmar se genera la factura {{ letra }} (de prueba, sin CAE).</p>
+    {{ botones('Confirmar Datos') }}
+    {% endif %}
+  </form>
+</div>
 
-  <h2>Detalle <small>(precios sin IVA)</small></h2>
-  {% for e in errores.renglones or [] %}<span class="error">{{ e }}</span>{% endfor %}
-
-  <table class="renglones">
-    <thead>
-      <tr><th>Descripción</th><th class="num">Cantidad</th><th class="num">Precio unitario</th><th class="num">Subtotal</th><th></th></tr>
-    </thead>
-    <tbody id="renglones">
-      {% for r in renglones %}
-      <tr>
-        <td><input name="descripcion" value="{{ r.descripcion }}" maxlength="1000" placeholder="{{ 'Ej: Int. AB123CD' if loop.first else '' }}"></td>
-        <td><input name="cantidad" value="{{ r.cantidad }}" class="num corto" placeholder="1" inputmode="decimal"></td>
-        <td><input name="precio" value="{{ r.precio }}" class="num" placeholder="0,00" inputmode="decimal"></td>
-        <td class="num subtotal"></td>
-        <td><button type="button" class="quitar" title="Quitar renglón">✕</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <div class="agregar">
-    <button type="button" class="boton secundario" id="agregar-renglon">+ Agregar renglón</button>
-    <select id="agregar-concepto">
-      <option value="">+ Agregar concepto fijo…</option>
-      {% for c in conceptos %}<option>{{ c.descripcion }}</option>{% endfor %}
-    </select>
-  </div>
-
-  <table class="totales">
-    <tr><td>Neto gravado</td><td class="num" id="total-neto">$ 0,00</td></tr>
-    <tr><td>IVA 21%</td><td class="num" id="total-iva">$ 0,00</td></tr>
-    <tr class="total"><td>Total</td><td class="num" id="total-total">$ 0,00</td></tr>
-  </table>
-
-  <label>Observaciones <small>(uso interno, no salen en la factura)</small>
-    <textarea name="observaciones" rows="2">{{ datos.observaciones }}</textarea>
-  </label>
-
-  <div class="acciones">
-    <button type="submit" class="boton">Guardar factura</button>
-    <a href="{{ url_for('facturas.lista') }}">Cancelar</a>
-  </div>
-</form>
-
+{% if paso == 2 %}
+<script id="datos-clientes" type="application/json">
+  {{ clientes_json|tojson }}
+</script>
+{% endif %}
 <script src="{{ url_for('static', filename='factura.js') }}"></script>
 {% endblock %}

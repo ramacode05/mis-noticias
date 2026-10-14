@@ -1,4 +1,15 @@
-"""Facturas A y B (por ahora de prueba, sin CAE de ARCA)."""
+"""Facturas A y B (por ahora de prueba, sin CAE de ARCA).
+
+La carga de una factura nueva sigue los mismos pasos que la web de ARCA (RCEL):
+  1. Datos de emisión    (fecha, concepto, período facturado, vencimiento)
+  2. Datos del receptor  (cliente y remito asociado)
+  3. Datos de la operación (renglones)
+  4. Resumen y confirmación
+Los datos de todos los pasos viajan en el formulario (campos ocultos) hasta que se
+confirma; recién ahí se guarda la factura.
+"""
+import sqlite3
+import uuid
 from datetime import date
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
@@ -6,20 +17,25 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from .configuracion import leer_config
 from .db import get_db
 from .importes import a_centavos, a_centesimos, calcular_totales, subtotal
-from .validaciones import letra_factura
+from .validaciones import CONDICIONES_IVA, formatear_cuit, letra_factura, validar_cliente
 
 bp = Blueprint("facturas", __name__, url_prefix="/facturas")
 
 # Códigos de ARCA.
 CBTE_TIPO = {"A": 1, "B": 6}
 CONCEPTOS = {1: "Productos", 2: "Servicios", 3: "Productos y Servicios"}
-CONDICIONES_VENTA = [
-    "Cuenta Corriente", "Contado", "Transferencia Bancaria", "Cheque",
-    "Tarjeta de Débito", "Tarjeta de Crédito", "Otra",
-]
+CONDICION_VENTA = "Cuenta Corriente"  # la empresa siempre vende en cuenta corriente
 # ARCA acepta la fecha de emisión hasta 5 días antes o después de hoy para productos
 # y hasta 10 días para servicios.
 DIAS_MARGEN = {1: 5, 2: 10, 3: 10}
+
+PASOS = {1: "Datos de emisión", 2: "Datos del receptor", 3: "Datos de la operación",
+         4: "Resumen"}
+CAMPOS_PASO = {
+    1: ("fecha", "concepto", "serv_desde", "serv_hasta", "vto_pago"),
+    2: ("cliente_id", "remito_numero", "remito_confirmado"),
+    3: ("observaciones",),
+}
 
 
 def leer_fecha(texto):
@@ -29,18 +45,6 @@ def leer_fecha(texto):
         return None
 
 
-def clientes_activos():
-    return get_db().execute(
-        "SELECT * FROM clientes WHERE activo = 1 ORDER BY razon_social COLLATE NOCASE"
-    ).fetchall()
-
-
-def conceptos_activos():
-    return get_db().execute(
-        "SELECT descripcion FROM conceptos WHERE activo = 1 ORDER BY descripcion COLLATE NOCASE"
-    ).fetchall()
-
-
 def ultima_factura(punto_venta, cbte_tipo, prueba=1):
     return get_db().execute(
         "SELECT numero, fecha FROM facturas WHERE punto_venta = ? AND cbte_tipo = ? AND prueba = ? "
@@ -48,123 +52,173 @@ def ultima_factura(punto_venta, cbte_tipo, prueba=1):
     ).fetchone()
 
 
-def leer_renglones(form):
-    """Lee los renglones del formulario. Devuelve (renglones_tal_cual, renglones_validos, errores)."""
-    descripciones = form.getlist("descripcion")
-    cantidades = form.getlist("cantidad")
-    precios = form.getlist("precio")
-    crudos, validos, errores = [], [], []
-    for n, (desc, cant, precio) in enumerate(zip(descripciones, cantidades, precios), start=1):
-        desc = " ".join(desc.split())
-        if not (desc or cant.strip() or precio.strip()):
-            continue  # renglón vacío: se ignora
-        crudos.append({"descripcion": desc, "cantidad": cant.strip(), "precio": precio.strip()})
-        c = a_centesimos(cant) if cant.strip() else 100
-        p = a_centavos(precio)
-        if not desc:
-            errores.append(f"Renglón {n}: falta la descripción.")
-        elif len(desc) > 1000:
-            errores.append(f"Renglón {n}: la descripción es demasiado larga.")
-        if c is None or c <= 0:
-            errores.append(f"Renglón {n}: la cantidad no es válida.")
-        if p is None or p < 0:
-            errores.append(f"Renglón {n}: el precio no es válido (escribilo sin IVA, por ejemplo 30.000,50).")
-        if desc and c and c > 0 and p is not None and p >= 0:
-            validos.append({"descripcion": desc, "cantidad": c, "precio_unitario": p,
-                            "subtotal": subtotal(c, p)})
-    if not crudos:
-        errores.append("Agregá al menos un renglón al detalle.")
-    return crudos, validos, errores
+def leer_formulario(form):
+    """Junta los datos de todos los pasos que vienen en el formulario."""
+    datos = {campo: (form.get(campo) or "").strip()
+             for campos in CAMPOS_PASO.values() for campo in campos}
+    datos["token"] = form.get("token") or uuid.uuid4().hex
+    datos["renglones"] = [
+        {"descripcion": " ".join(d.split()), "cantidad": c.strip(), "precio": p.strip()}
+        for d, c, p in zip(form.getlist("descripcion"), form.getlist("cantidad"),
+                           form.getlist("precio"))
+    ]
+    return datos
 
 
-def validar_factura(form):
-    """Devuelve (datos, renglones, crudos, errores). errores: dict campo -> mensaje."""
+def datos_iniciales(cliente_id=None):
+    hoy = date.today().isoformat()
+    return {"token": uuid.uuid4().hex, "fecha": hoy, "concepto": "3", "serv_desde": hoy,
+            "serv_hasta": hoy, "vto_pago": hoy, "cliente_id": str(cliente_id or ""),
+            "remito_numero": "", "remito_confirmado": "", "observaciones": "",
+            "renglones": []}
+
+
+# --- Validaciones de cada paso ----------------------------------------------------------
+
+def validar_emision(datos):
     errores = {}
-    datos = {
-        "cliente_id": form.get("cliente_id", type=int),
-        "fecha": form.get("fecha", ""),
-        "concepto": form.get("concepto", type=int) or 3,
-        "serv_desde": form.get("serv_desde", ""),
-        "serv_hasta": form.get("serv_hasta", ""),
-        "vto_pago": form.get("vto_pago", ""),
-        "condicion_venta": form.get("condicion_venta", ""),
-        "observaciones": (form.get("observaciones") or "").strip(),
-    }
-
-    cliente = None
-    if datos["cliente_id"]:
-        cliente = get_db().execute("SELECT * FROM clientes WHERE id = ? AND activo = 1",
-                                   (datos["cliente_id"],)).fetchone()
-    if cliente is None:
-        errores["cliente_id"] = "Elegí el cliente."
-
-    if datos["concepto"] not in CONCEPTOS:
+    concepto = int(datos["concepto"]) if datos["concepto"].isdigit() else 0
+    if concepto not in CONCEPTOS:
         errores["concepto"] = "Elegí qué se factura."
-    if datos["condicion_venta"] not in CONDICIONES_VENTA:
-        errores["condicion_venta"] = "Elegí la condición de venta."
-
     fecha = leer_fecha(datos["fecha"])
-    hoy = date.today()
-    margen = DIAS_MARGEN.get(datos["concepto"], 5)
+    margen = DIAS_MARGEN.get(concepto, 5)
     if fecha is None:
-        errores["fecha"] = "Escribí la fecha de la factura."
-    elif abs((fecha - hoy).days) > margen:
+        errores["fecha"] = "Escribí la fecha del comprobante."
+    elif abs((fecha - date.today()).days) > margen:
         errores["fecha"] = f"ARCA solo acepta fechas hasta {margen} días antes o después de hoy."
-    elif cliente is not None:
-        letra = letra_factura(cliente["condicion_iva"])
-        ultima = ultima_factura(int(leer_config("punto_venta")), CBTE_TIPO[letra])
-        if ultima and datos["fecha"] < ultima["fecha"]:
-            errores["fecha"] = (f"La fecha no puede ser anterior a la última Factura {letra} "
-                                f"({date.fromisoformat(ultima['fecha']):%d/%m/%Y}).")
-
-    if datos["concepto"] in (2, 3):
+    if concepto in (2, 3):
         desde, hasta, vto = (leer_fecha(datos[c]) for c in ("serv_desde", "serv_hasta", "vto_pago"))
         if desde is None or hasta is None:
-            errores["serv_desde"] = "Completá el período del servicio (desde y hasta)."
+            errores["serv_desde"] = "Completá el período facturado (desde y hasta)."
         elif desde > hasta:
-            errores["serv_desde"] = "La fecha «desde» no puede ser posterior a «hasta»."
+            errores["serv_desde"] = "La fecha «Desde» no puede ser posterior a «Hasta»."
         if vto is None:
-            errores["vto_pago"] = "Completá el vencimiento del pago."
+            errores["vto_pago"] = "Completá el vencimiento para el pago."
         elif fecha and vto < fecha:
-            errores["vto_pago"] = "El vencimiento no puede ser anterior a la fecha de la factura."
+            errores["vto_pago"] = "El vencimiento no puede ser anterior a la fecha del comprobante."
+    return errores
+
+
+def buscar_cliente(datos):
+    if not datos["cliente_id"].isdigit():
+        return None
+    return get_db().execute("SELECT * FROM clientes WHERE id = ? AND activo = 1",
+                            (int(datos["cliente_id"]),)).fetchone()
+
+
+def factura_con_remito(numero):
+    return get_db().execute(
+        "SELECT * FROM facturas WHERE remito_pto_vta = ? AND remito_numero = ? ORDER BY id LIMIT 1",
+        (int(leer_config("remito_punto_venta")), numero)).fetchone()
+
+
+def validar_receptor(datos):
+    errores = {}
+    cliente = buscar_cliente(datos)
+    if cliente is None:
+        errores["cliente_id"] = "Elegí el cliente."
     else:
-        datos.update(serv_desde="", serv_hasta="", vto_pago="")
+        letra = letra_factura(cliente["condicion_iva"])
+        ultima = ultima_factura(int(leer_config("punto_venta")), CBTE_TIPO[letra])
+        if ultima and datos["fecha"] and datos["fecha"] < ultima["fecha"]:
+            errores["cliente_id"] = (
+                f"La fecha del comprobante (paso 1) no puede ser anterior a la última Factura {letra} "
+                f"({date.fromisoformat(ultima['fecha']):%d/%m/%Y}). Volvé al paso 1 y cambiala.")
 
-    crudos, renglones, errores_renglones = leer_renglones(form)
-    if errores_renglones:
-        errores["renglones"] = errores_renglones
-    elif calcular_totales([(r["cantidad"], r["precio_unitario"]) for r in renglones])["total"] <= 0:
-        errores["renglones"] = ["El total de la factura tiene que ser mayor a cero."]
+    if datos["remito_numero"]:
+        numero = datos["remito_numero"].replace(" ", "")
+        if not numero.isdigit() or len(numero) > 8 or int(numero) == 0:
+            errores["remito_numero"] = "Escribí solo el número del remito (hasta 8 números, sin guiones)."
+        else:
+            datos["remito_numero"] = str(int(numero))
+            anterior = factura_con_remito(int(numero))
+            if anterior and not datos["remito_confirmado"]:
+                errores["remito_numero"] = (
+                    f"Este remito ya está en la Factura {anterior['letra']} N° {anterior['numero']} "
+                    f"del {date.fromisoformat(anterior['fecha']):%d/%m/%Y} "
+                    f"({anterior['cliente_razon_social']}).")
+                errores["remito_repetido"] = True
+    return cliente, errores
 
-    return datos, cliente, renglones, crudos, errores
 
+def validar_operacion(datos):
+    """Devuelve (renglones_validos, errores)."""
+    validos, mensajes = [], []
+    cargados = [r for r in datos["renglones"] if r["descripcion"] or r["cantidad"] or r["precio"]]
+    for n, r in enumerate(cargados, start=1):
+        c = a_centesimos(r["cantidad"]) if r["cantidad"] else 100
+        p = a_centavos(r["precio"])
+        if not r["descripcion"]:
+            mensajes.append(f"Línea {n}: falta el producto o servicio.")
+        elif len(r["descripcion"]) > 1000:
+            mensajes.append(f"Línea {n}: la descripción es demasiado larga.")
+        if c is None or c <= 0:
+            mensajes.append(f"Línea {n}: la cantidad no es válida.")
+        if p is None or p < 0:
+            mensajes.append(f"Línea {n}: el precio unitario no es válido "
+                            "(escribilo sin IVA, por ejemplo 30.000,50).")
+        if r["descripcion"] and c and c > 0 and p is not None and p >= 0:
+            validos.append({"descripcion": r["descripcion"], "cantidad": c, "precio_unitario": p,
+                            "subtotal": subtotal(c, p)})
+    if not cargados:
+        mensajes.append("Agregá al menos una línea con el producto o servicio.")
+    elif not mensajes and calcular_totales(
+            [(r["cantidad"], r["precio_unitario"]) for r in validos])["total"] <= 0:
+        mensajes.append("El importe total tiene que ser mayor a cero.")
+    if len(datos["observaciones"]) > 1000:
+        mensajes.append("Las observaciones son demasiado largas.")
+    return validos, ({"renglones": mensajes} if mensajes else {})
+
+
+VALIDAR_PASO = {
+    1: validar_emision,
+    2: lambda d: validar_receptor(d)[1],
+    3: lambda d: validar_operacion(d)[1],
+}
+
+
+# --- Guardado ---------------------------------------------------------------------------
 
 def guardar_factura(datos, cliente, renglones):
-    """Guarda la factura con el número siguiente. Devuelve el id."""
+    """Guarda la factura con el número siguiente. Devuelve el id.
+
+    Si ya existe una factura con el mismo token (se tocó "Confirmar" dos veces),
+    devuelve esa en lugar de crear otra.
+    """
     db = get_db()
     letra = letra_factura(cliente["condicion_iva"])
     cbte_tipo = CBTE_TIPO[letra]
     totales = calcular_totales([(r["cantidad"], r["precio_unitario"]) for r in renglones])
     domicilio = ", ".join(x for x in (cliente["domicilio"], cliente["localidad"]) if x)
+    concepto = int(datos["concepto"])
+    servicio = concepto in (2, 3)
 
     # BEGIN IMMEDIATE bloquea la base mientras se asigna el número, así dos personas
     # facturando al mismo tiempo nunca obtienen el mismo número.
     db.execute("BEGIN IMMEDIATE")
     try:
+        repetida = db.execute("SELECT id FROM facturas WHERE token = ?", (datos["token"],)).fetchone()
+        if repetida:
+            db.rollback()
+            return repetida["id"]
         punto_venta = int(leer_config("punto_venta"))
         ultima = ultima_factura(punto_venta, cbte_tipo)
         numero = (ultima["numero"] if ultima else 0) + 1
+        remito = int(datos["remito_numero"]) if datos["remito_numero"] else None
         cur = db.execute(
             """INSERT INTO facturas (cbte_tipo, letra, punto_venta, numero, prueba, fecha, concepto,
                    serv_desde, serv_hasta, vto_pago, condicion_venta, cliente_id,
                    cliente_razon_social, cliente_condicion_iva, cliente_tipo_doc, cliente_nro_doc,
-                   cliente_domicilio, neto, iva, total, observaciones)
-               VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (cbte_tipo, letra, punto_venta, numero, datos["fecha"], datos["concepto"],
-             datos["serv_desde"] or None, datos["serv_hasta"] or None, datos["vto_pago"] or None,
-             datos["condicion_venta"], cliente["id"], cliente["razon_social"],
-             cliente["condicion_iva"], cliente["tipo_doc"], cliente["nro_doc"], domicilio,
-             totales["neto"], totales["iva"], totales["total"], datos["observaciones"]),
+                   cliente_domicilio, neto, iva, total, observaciones,
+                   remito_pto_vta, remito_numero, token)
+               VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (cbte_tipo, letra, punto_venta, numero, datos["fecha"], concepto,
+             datos["serv_desde"] if servicio else None, datos["serv_hasta"] if servicio else None,
+             datos["vto_pago"] if servicio else None, CONDICION_VENTA, cliente["id"],
+             cliente["razon_social"], cliente["condicion_iva"], cliente["tipo_doc"],
+             cliente["nro_doc"], domicilio, totales["neto"], totales["iva"], totales["total"],
+             datos["observaciones"],
+             int(leer_config("remito_punto_venta")) if remito else None, remito, datos["token"]),
         )
         factura_id = cur.lastrowid
         db.executemany(
@@ -177,8 +231,31 @@ def guardar_factura(datos, cliente, renglones):
     except Exception:
         db.rollback()
         raise
-    return factura_id, letra, numero
+    return factura_id
 
+
+def crear_cliente_rapido(form):
+    """Alta de cliente desde el paso 2. Devuelve (cliente_id, datos_cliente, errores)."""
+    datos, errores = validar_cliente({
+        "razon_social": form.get("nc_razon_social"), "condicion_iva": form.get("nc_condicion_iva"),
+        "tipo_doc": form.get("nc_tipo_doc"), "nro_doc": form.get("nc_nro_doc"),
+        "domicilio": form.get("nc_domicilio"), "localidad": form.get("nc_localidad"),
+        "email": form.get("nc_email"), "activo": "1",
+    })
+    if errores:
+        return None, datos, errores
+    campos = list(datos)
+    try:
+        db = get_db()
+        cur = db.execute(f"INSERT INTO clientes ({', '.join(campos)}) "
+                         f"VALUES ({', '.join('?' * len(campos))})", [datos[c] for c in campos])
+        db.commit()
+    except sqlite3.IntegrityError:
+        return None, datos, {"nro_doc": "Ya existe un cliente con ese documento: buscalo en la lista."}
+    return cur.lastrowid, datos, {}
+
+
+# --- Pantallas --------------------------------------------------------------------------
 
 @bp.route("/")
 def lista():
@@ -187,9 +264,14 @@ def lista():
 
     sql = "SELECT * FROM facturas WHERE 1=1"
     params = []
-    for palabra in q.split():
-        sql += " AND cliente_razon_social LIKE ?"
-        params.append(f"%{palabra}%")
+    if q.isdigit():
+        # Un número busca por número de remito o de factura.
+        sql += " AND (remito_numero = ? OR numero = ?)"
+        params += [int(q), int(q)]
+    else:
+        for palabra in q.split():
+            sql += " AND cliente_razon_social LIKE ?"
+            params.append(f"%{palabra}%")
     if mes:
         sql += " AND substr(fecha, 1, 7) = ?"
         params.append(mes)
@@ -202,26 +284,73 @@ def lista():
 
 @bp.route("/nueva", methods=("GET", "POST"))
 def nueva():
-    if request.method == "POST":
-        datos, cliente, renglones, crudos, errores = validar_factura(request.form)
-        if not errores:
-            factura_id, letra, numero = guardar_factura(datos, cliente, renglones)
-            flash(f"Factura {letra} N° {numero} guardada (de prueba).", "ok")
-            return redirect(url_for("facturas.ver", id=factura_id))
+    errores, nuevo_cliente = {}, {}
+    if request.method == "GET":
+        datos, paso = datos_iniciales(request.args.get("cliente", type=int)), 1
     else:
-        hoy = date.today().isoformat()
-        datos = {"cliente_id": request.args.get("cliente", type=int), "fecha": hoy,
-                 "concepto": 3, "serv_desde": hoy, "serv_hasta": hoy, "vto_pago": hoy,
-                 "condicion_venta": "Cuenta Corriente", "observaciones": ""}
-        crudos, errores = [], {}
+        datos = leer_formulario(request.form)
+        paso = request.form.get("paso", type=int) or 1
+        accion = request.form.get("accion", "")
 
-    while len(crudos) < 3:
-        crudos.append({"descripcion": "", "cantidad": "", "precio": ""})
+        if accion == "volver":
+            paso = max(1, paso - 1)
+        elif accion.startswith("ir_"):
+            paso = min(paso, int(accion[3:]))  # solo permite volver a pasos anteriores
+        elif accion == "crear_cliente":
+            cliente_id, nuevo_cliente, errores_nc = crear_cliente_rapido(request.form)
+            if cliente_id:
+                datos["cliente_id"] = str(cliente_id)
+                nuevo_cliente = {}
+                flash(f"Cliente «{request.form.get('nc_razon_social', '').strip()}» cargado y elegido.", "ok")
+            else:
+                errores = {"nuevo_cliente": errores_nc}
+        elif accion == "continuar" and paso in VALIDAR_PASO:
+            errores = VALIDAR_PASO[paso](datos)
+            if not errores:
+                paso += 1
+        elif accion == "confirmar":
+            # Revisa todo de nuevo: puede haber cambiado algo desde que se cargó cada paso.
+            for p in (1, 2, 3):
+                errores = VALIDAR_PASO[p](datos)
+                if errores:
+                    paso = p
+                    break
+            else:
+                cliente, _ = validar_receptor(datos)
+                renglones, _ = validar_operacion(datos)
+                factura_id = guardar_factura(datos, cliente, renglones)
+                f = get_db().execute("SELECT * FROM facturas WHERE id = ?", (factura_id,)).fetchone()
+                flash(f"Factura {f['letra']} N° {f['numero']} generada (de prueba).", "ok")
+                return redirect(url_for("facturas.ver", id=factura_id))
 
-    return render_template("facturas/nueva.html", datos=datos, renglones=crudos, errores=errores,
-                           clientes=clientes_activos(), conceptos=conceptos_activos(),
-                           CONCEPTOS=CONCEPTOS, CONDICIONES_VENTA=CONDICIONES_VENTA,
-                           punto_venta=int(leer_config("punto_venta")))
+    cliente = buscar_cliente(datos)
+    renglones, _ = validar_operacion(datos) if paso == 4 else ([], {})
+    if paso == 3:
+        while len(datos["renglones"]) < 3:
+            datos["renglones"].append({"descripcion": "", "cantidad": "", "precio": ""})
+
+    clientes = get_db().execute(
+        "SELECT * FROM clientes WHERE activo = 1 ORDER BY razon_social COLLATE NOCASE").fetchall()
+    # Datos de los clientes para el buscador del paso 2 (lo usa factura.js).
+    clientes_json = [{
+        "id": c["id"], "razon_social": c["razon_social"], "nro_doc": c["nro_doc"],
+        "condicion": CONDICIONES_IVA[c["condicion_iva"]], "letra": letra_factura(c["condicion_iva"]),
+        "documento": (f"{c['tipo_doc']} {formatear_cuit(c['nro_doc']) if c['tipo_doc'] == 'CUIT' else c['nro_doc']}"
+                      if c["tipo_doc"] != "SIN" else ""),
+        "domicilio": ", ".join(x for x in (c["domicilio"], c["localidad"]) if x), "email": c["email"],
+    } for c in clientes] if paso == 2 else []
+    conceptos = get_db().execute(
+        "SELECT descripcion FROM conceptos WHERE activo = 1 ORDER BY descripcion COLLATE NOCASE"
+    ).fetchall()
+    return render_template(
+        "facturas/nueva.html", paso=paso, PASOS=PASOS, datos=datos, errores=errores,
+        cliente=cliente, letra=letra_factura(cliente["condicion_iva"]) if cliente else "",
+        clientes_json=clientes_json, conceptos=conceptos, renglones=renglones,
+        totales=calcular_totales([(r["cantidad"], r["precio_unitario"]) for r in renglones]),
+        nuevo_cliente=nuevo_cliente, CONCEPTOS=CONCEPTOS, CONDICION_VENTA=CONDICION_VENTA,
+        punto_venta=int(leer_config("punto_venta")),
+        remito_pto_vta=int(leer_config("remito_punto_venta")),
+    )
 
 
 @bp.route("/<int:id>")

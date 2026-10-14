@@ -1,9 +1,11 @@
-"""Configuración general del sistema (por ahora, el punto de venta)."""
+"""Configuración general del sistema: puntos de venta de facturas y de remitos."""
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from .db import get_db
 
 bp = Blueprint("configuracion", __name__, url_prefix="/configuracion")
+
+CAMPOS = ("punto_venta", "remito_punto_venta")
 
 
 def leer_config(clave):
@@ -14,16 +16,17 @@ def leer_config(clave):
 @bp.route("/", methods=("GET", "POST"))
 def editar():
     errores = {}
-    punto_venta = leer_config("punto_venta")
+    valores = {c: leer_config(c) for c in CAMPOS}
     if request.method == "POST":
-        punto_venta = (request.form.get("punto_venta") or "").strip()
-        if not punto_venta.isdigit() or not 1 <= int(punto_venta) <= 99998:
-            errores["punto_venta"] = "El punto de venta es un número entre 1 y 99998."
-        else:
+        valores = {c: (request.form.get(c) or "").strip() for c in CAMPOS}
+        for campo, valor in valores.items():
+            if not valor.isdigit() or not 1 <= int(valor) <= 99998:
+                errores[campo] = "El punto de venta es un número entre 1 y 99998."
+        if not errores:
             db = get_db()
-            db.execute("UPDATE configuracion SET valor = ? WHERE clave = 'punto_venta'",
-                       (str(int(punto_venta)),))
+            db.executemany("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)",
+                           [(c, str(int(v))) for c, v in valores.items()])
             db.commit()
             flash("Configuración guardada.", "ok")
             return redirect(url_for("configuracion.editar"))
-    return render_template("configuracion.html", punto_venta=punto_venta, errores=errores)
+    return render_template("configuracion.html", valores=valores, errores=errores)

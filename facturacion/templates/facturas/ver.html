@@ -23,6 +23,7 @@
         <strong>Vencimiento del pago:</strong> {{ f.vto_pago|fecha }}<br>
       {% endif %}
       <strong>Condición de venta:</strong> {{ f.condicion_venta }}<br>
+      {% if f.remito_numero %}<strong>Remito asociado:</strong> R {{ "%05d"|format(f.remito_pto_vta) }}-{{ "%08d"|format(f.remito_numero) }}<br>{% endif %}
       <strong>CAE:</strong> {{ f.cae or 'sin CAE (factura de prueba)' }}
     </div>
   </div>

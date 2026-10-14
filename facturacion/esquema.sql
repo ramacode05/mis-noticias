@@ -33,12 +33,13 @@ CREATE TABLE IF NOT EXISTS conceptos (
 CREATE UNIQUE INDEX IF NOT EXISTS conceptos_descripcion_unica
     ON conceptos (descripcion COLLATE NOCASE);
 
--- Configuración general (clave = valor). Por ahora: punto de venta.
+-- Configuración general (clave = valor): punto de venta de facturas y de remitos.
 CREATE TABLE IF NOT EXISTS configuracion (
     clave           TEXT PRIMARY KEY,
     valor           TEXT NOT NULL
 );
 INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('punto_venta', '1');
+INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('remito_punto_venta', '1');
 
 -- Facturas. Los datos del cliente se copian en la factura: si después se edita el
 -- cliente, la factura ya emitida no cambia. Importes en centavos.
@@ -67,6 +68,7 @@ CREATE TABLE IF NOT EXISTS facturas (
     observaciones       TEXT NOT NULL DEFAULT '',
     cae                 TEXT,
     cae_vto             TEXT,
+    -- remito_pto_vta, remito_numero y token se agregan desde db.py (COLUMNAS_NUEVAS).
     creado              TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 

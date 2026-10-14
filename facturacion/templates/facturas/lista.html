@@ -7,7 +7,7 @@
 </div>
 
 <form class="busqueda" method="get">
-  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente">
+  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente, o por número de remito o de factura">
   <label>Mes <input type="month" name="mes" value="{{ mes }}"></label>
   <button type="submit">Buscar</button>
   {% if q or mes %}<a href="{{ url_for('facturas.lista') }}">Limpiar</a>{% endif %}
@@ -16,7 +16,7 @@
 {% if facturas %}
 <table>
   <thead>
-    <tr><th>Fecha</th><th>Comprobante</th><th>Cliente</th><th class="num">Neto</th><th class="num">IVA</th><th class="num">Total</th><th></th></tr>
+    <tr><th>Fecha</th><th>Comprobante</th><th>Cliente</th><th>Remito</th><th class="num">Neto</th><th class="num">IVA</th><th class="num">Total</th><th></th></tr>
   </thead>
   <tbody>
   {% for f in facturas %}
@@ -24,6 +24,7 @@
       <td>{{ f.fecha|fecha }}</td>
       <td><span class="letra">{{ f.letra }}</span> {{ f|nro_cbte }}{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}</td>
       <td>{{ f.cliente_razon_social }}</td>
+      <td>{{ f.remito_numero or '' }}</td>
       <td class="num">{{ f.neto|pesos }}</td>
       <td class="num">{{ f.iva|pesos }}</td>
       <td class="num"><strong>{{ f.total|pesos }}</strong></td>
@@ -32,7 +33,7 @@
   {% endfor %}
   </tbody>
   <tfoot>
-    <tr><td colspan="5">{{ facturas|length }} factura(s)</td><td class="num"><strong>{{ total|pesos }}</strong></td><td></td></tr>
+    <tr><td colspan="6">{{ facturas|length }} factura(s)</td><td class="num"><strong>{{ total|pesos }}</strong></td><td></td></tr>
   </tfoot>
 </table>
 {% else %}

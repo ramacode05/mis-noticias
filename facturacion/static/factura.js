@@ -1,125 +1,225 @@
-// Pantalla "Nueva factura": calcula subtotales y totales mientras se escribe.
-// El cálculo definitivo lo hace el servidor al guardar; esto es solo para ver los números.
+// Pantalla "Nueva factura" (pasos como en ARCA).
+// Paso 1: oculta el período facturado si se factura solo "Productos".
+// Paso 2: buscador de clientes por nombre o CUIT.
+// Paso 3: calcula subtotales, IVA y total mientras se escribe.
+// El cálculo definitivo lo hace el servidor; esto es solo para ver los números.
 (function () {
+  var form = document.getElementById('form-factura');
+  if (!form) return;
+
+  // Evita generar dos facturas si se hace doble clic en "Confirmar Datos".
+  form.addEventListener('submit', function (e) {
+    var boton = e.submitter;
+    if (!boton || boton.value !== 'confirmar') return;
+    if (form.dataset.enviado) { e.preventDefault(); return; }
+    form.dataset.enviado = '1';
+    setTimeout(function () { boton.disabled = true; boton.textContent = 'Generando…'; }, 0);
+  });
+
+  // Enter en un campo de texto pasa al paso siguiente (como "Continuar"),
+  // salvo en el buscador de clientes y en los renglones.
+  form.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || (e.target.tagName === 'TEXTAREA' && !e.target.closest('#renglones'))) return;
+    if (e.target.closest('#renglones') || e.target.id === 'buscar-cliente' ||
+        e.target.closest('.nuevo-cliente')) {
+      e.preventDefault();
+    }
+  });
+
+  // ------------------------------------------------------------------ Paso 1
+  var concepto = document.getElementById('concepto');
+  if (concepto) {
+    var mostrarPeriodo = function () {
+      document.getElementById('fechas-servicio').style.display = concepto.value === '1' ? 'none' : '';
+    };
+    concepto.addEventListener('change', mostrarPeriodo);
+    mostrarPeriodo();
+
+    // Si cambia la fecha del comprobante, acompaña las fechas del período que estaban iguales.
+    var fecha = document.getElementById('fecha');
+    var fechaAnterior = fecha.value;
+    fecha.addEventListener('change', function () {
+      ['serv_desde', 'serv_hasta', 'vto_pago'].forEach(function (id) {
+        var campo = document.getElementById(id);
+        if (campo.value === fechaAnterior) campo.value = fecha.value;
+      });
+      fechaAnterior = fecha.value;
+    });
+  }
+
+  // ------------------------------------------------------------------ Paso 2
+  var buscador = document.getElementById('buscar-cliente');
+  if (buscador) {
+    var clientes = JSON.parse(document.getElementById('datos-clientes').textContent);
+    var lista = document.getElementById('resultados-cliente');
+    var seleccionado = -1;
+
+    var normalizar = function (t) {
+      return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    };
+
+    var elegir = function (c) {
+      document.getElementById('cliente_id').value = c.id;
+      document.getElementById('c-condicion').value = c.condicion;
+      document.getElementById('c-documento').value = c.documento;
+      document.getElementById('c-razon').value = c.razon_social;
+      document.getElementById('c-domicilio').value = c.domicilio;
+      document.getElementById('c-email').value = c.email;
+      document.getElementById('c-letra').textContent = 'Factura ' + c.letra;
+      document.getElementById('titulo-comprobante').textContent = 'FACTURA ' + c.letra;
+      buscador.value = '';
+      lista.hidden = true;
+      document.getElementById('remito_numero').focus();
+    };
+
+    var marcar = function () {
+      lista.querySelectorAll('li').forEach(function (li, i) {
+        li.classList.toggle('activo', i === seleccionado);
+      });
+    };
+
+    buscador.addEventListener('input', function () {
+      var texto = normalizar(buscador.value.trim());
+      var digitos = buscador.value.replace(/\D/g, '');
+      lista.innerHTML = '';
+      seleccionado = -1;
+      if (!texto) { lista.hidden = true; return; }
+      var palabras = texto.split(/\s+/);
+      var encontrados = clientes.filter(function (c) {
+        var nombre = normalizar(c.razon_social);
+        var porNombre = palabras.every(function (p) { return nombre.indexOf(p) >= 0; });
+        var porDoc = digitos.length >= 3 && c.nro_doc.indexOf(digitos) >= 0;
+        return porNombre || porDoc;
+      }).slice(0, 15);
+
+      if (!encontrados.length) {
+        var vacio = document.createElement('li');
+        vacio.className = 'vacio';
+        vacio.textContent = 'No se encontró. Podés cargarlo abajo en "Cargar cliente nuevo".';
+        lista.appendChild(vacio);
+      }
+      encontrados.forEach(function (c) {
+        var li = document.createElement('li');
+        var nombre = document.createElement('strong');
+        nombre.textContent = c.razon_social;
+        li.appendChild(nombre);
+        li.appendChild(document.createTextNode(
+          ' — ' + (c.documento || 'sin documento') + ' — ' + c.condicion + ' (Factura ' + c.letra + ')'));
+        li.addEventListener('mousedown', function (e) { e.preventDefault(); elegir(c); });
+        li.cliente = c;
+        lista.appendChild(li);
+      });
+      lista.hidden = false;
+      if (encontrados.length === 1) { seleccionado = 0; marcar(); }
+    });
+
+    // Flechas arriba/abajo y Enter para elegir con el teclado.
+    buscador.addEventListener('keydown', function (e) {
+      var items = lista.querySelectorAll('li:not(.vacio)');
+      if (e.key === 'ArrowDown' && items.length) {
+        seleccionado = Math.min(seleccionado + 1, items.length - 1); marcar(); e.preventDefault();
+      } else if (e.key === 'ArrowUp' && items.length) {
+        seleccionado = Math.max(seleccionado - 1, 0); marcar(); e.preventDefault();
+      } else if (e.key === 'Enter' && seleccionado >= 0 && items[seleccionado]) {
+        elegir(items[seleccionado].cliente);
+      } else if (e.key === 'Escape') {
+        lista.hidden = true;
+      }
+    });
+    buscador.addEventListener('blur', function () { setTimeout(function () { lista.hidden = true; }, 150); });
+  }
+
+  // ------------------------------------------------------------------ Paso 3
   var tbody = document.getElementById('renglones');
-  var selCliente = document.getElementById('cliente');
-  var selConcepto = document.getElementById('concepto');
+  if (tbody) {
+    // Lee "30.000,50", "30000,5", "30000.50" o "30.000" (igual que importes.py).
+    var leerNumero = function (texto) {
+      texto = (texto || '').replace(/[\s$]/g, '');
+      if (!texto) return null;
+      if (texto.indexOf(',') >= 0) {
+        texto = texto.replace(/\./g, '').replace(',', '.');
+      } else if ((texto.match(/\./g) || []).length > 1 || /^\d{1,3}(\.\d{3})+$/.test(texto)) {
+        texto = texto.replace(/\./g, '');
+      }
+      var n = Number(texto);
+      return isFinite(n) ? n : null;
+    };
 
-  // Lee "30.000,50", "30000,5", "30000.50" o "30.000" (igual que importes.py).
-  function leerNumero(texto) {
-    texto = (texto || '').replace(/[\s$]/g, '');
-    if (!texto) return null;
-    if (texto.indexOf(',') >= 0) {
-      texto = texto.replace(/\./g, '').replace(',', '.');
-    } else if ((texto.match(/\./g) || []).length > 1 || /^\d{1,3}(\.\d{3})+$/.test(texto)) {
-      texto = texto.replace(/\./g, '');
-    }
-    var n = Number(texto);
-    return isFinite(n) ? n : null;
-  }
+    // Formato "123.456,78" (los importes se calculan en centavos enteros, como el servidor).
+    var pesos = function (cent) {
+      var negativo = cent < 0;
+      cent = Math.abs(cent);
+      var entero = Math.floor(cent / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return (negativo ? '-' : '') + entero + ',' + String(cent % 100).padStart(2, '0');
+    };
 
-  // Trabaja en centavos enteros para que coincida con el servidor.
-  function centavos(n) { return Math.round(n * 100); }
+    var recalcular = function () {
+      var neto = 0;
+      tbody.querySelectorAll('tr').forEach(function (tr) {
+        var campoCant = tr.querySelector('[name=cantidad]');
+        var cant = campoCant.value.trim() === '' ? 1 : leerNumero(campoCant.value);
+        var precio = leerNumero(tr.querySelector('[name=precio]').value);
+        var celdas = [tr.querySelector('.subtotal'), tr.querySelector('.importe-iva'), tr.querySelector('.subtotal-iva')];
+        if (cant === null || precio === null) {
+          celdas.forEach(function (c) { c.textContent = ''; });
+          return;
+        }
+        var sub = Math.round(Math.round(cant * 100) * Math.round(precio * 100) / 100);
+        var iva = Math.round(sub * 21 / 100);
+        neto += sub;
+        celdas[0].textContent = pesos(sub);
+        celdas[1].textContent = pesos(iva);
+        celdas[2].textContent = pesos(sub + iva);
+      });
+      var ivaTotal = Math.round(neto * 21 / 100);
+      document.getElementById('total-neto').textContent = pesos(neto);
+      document.getElementById('total-iva').textContent = pesos(ivaTotal);
+      document.getElementById('total-total').textContent = pesos(neto + ivaTotal);
+    };
 
-  function pesos(cent) {
-    var negativo = cent < 0;
-    cent = Math.abs(cent);
-    var entero = Math.floor(cent / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    var dec = String(cent % 100).padStart(2, '0');
-    return '$ ' + (negativo ? '-' : '') + entero + ',' + dec;
-  }
+    var nuevoRenglon = function () {
+      var tr = tbody.querySelector('tr').cloneNode(true);
+      tr.querySelectorAll('input, textarea').forEach(function (i) { i.value = ''; });
+      tr.querySelectorAll('.subtotal, .importe-iva, .subtotal-iva').forEach(function (c) { c.textContent = ''; });
+      tbody.appendChild(tr);
+      return tr;
+    };
 
-  function recalcular() {
-    var neto = 0;
-    tbody.querySelectorAll('tr').forEach(function (tr) {
-      var cant = leerNumero(tr.querySelector('[name=cantidad]').value);
-      var precio = leerNumero(tr.querySelector('[name=precio]').value);
-      if (tr.querySelector('[name=cantidad]').value.trim() === '') cant = 1;
-      var celda = tr.querySelector('.subtotal');
-      if (cant === null || precio === null) { celda.textContent = ''; return; }
-      var sub = Math.round(centavos(cant) * centavos(precio) / 100);
-      neto += sub;
-      celda.textContent = pesos(sub);
+    // Usa la primera línea sin descripción; si no hay, agrega una.
+    var renglonLibre = function () {
+      var filas = tbody.querySelectorAll('tr');
+      for (var i = 0; i < filas.length; i++) {
+        if (!filas[i].querySelector('[name=descripcion]').value.trim()) return filas[i];
+      }
+      return nuevoRenglon();
+    };
+
+    tbody.addEventListener('input', recalcular);
+    tbody.addEventListener('click', function (e) {
+      if (!e.target.classList.contains('quitar')) return;
+      var tr = e.target.closest('tr');
+      if (tbody.querySelectorAll('tr').length > 1) tr.remove();
+      else tr.querySelectorAll('input, textarea').forEach(function (i) { i.value = ''; });
+      recalcular();
     });
-    var iva = Math.round(neto * 21 / 100);
-    document.getElementById('total-neto').textContent = pesos(neto);
-    document.getElementById('total-iva').textContent = pesos(iva);
-    document.getElementById('total-total').textContent = pesos(neto + iva);
-  }
 
-  function nuevoRenglon(descripcion) {
-    var modelo = tbody.querySelector('tr');
-    var tr = modelo.cloneNode(true);
-    tr.querySelectorAll('input').forEach(function (i) { i.value = ''; i.placeholder = i.name === 'cantidad' ? '1' : i.name === 'precio' ? '0,00' : ''; });
-    tr.querySelector('.subtotal').textContent = '';
-    if (descripcion) tr.querySelector('[name=descripcion]').value = descripcion;
-    tbody.appendChild(tr);
-    return tr;
-  }
+    document.getElementById('agregar-renglon').addEventListener('click', function () {
+      nuevoRenglon().querySelector('[name=descripcion]').focus();
+    });
 
-  // Usa el primer renglón vacío; si no hay, agrega uno.
-  function renglonLibre() {
-    var filas = tbody.querySelectorAll('tr');
-    for (var i = 0; i < filas.length; i++) {
-      if (!filas[i].querySelector('[name=descripcion]').value.trim()) return filas[i];
+    var selConcepto = document.getElementById('agregar-concepto');
+    if (selConcepto) {
+      selConcepto.addEventListener('change', function () {
+        if (!this.value) return;
+        var tr = renglonLibre();
+        tr.querySelector('[name=descripcion]').value = this.value;
+        this.value = '';
+        tr.querySelector('[name=precio]').focus();
+      });
     }
-    return nuevoRenglon();
-  }
 
-  tbody.addEventListener('input', recalcular);
-  tbody.addEventListener('click', function (e) {
-    if (!e.target.classList.contains('quitar')) return;
-    var tr = e.target.closest('tr');
-    if (tbody.querySelectorAll('tr').length > 1) tr.remove();
-    else tr.querySelectorAll('input').forEach(function (i) { i.value = ''; });
     recalcular();
-  });
-
-  document.getElementById('agregar-renglon').addEventListener('click', function () {
-    nuevoRenglon().querySelector('[name=descripcion]').focus();
-  });
-
-  document.getElementById('agregar-concepto').addEventListener('change', function () {
-    if (!this.value) return;
-    var tr = renglonLibre();
-    tr.querySelector('[name=descripcion]').value = this.value;
-    this.value = '';
-    tr.querySelector('[name=precio]').focus();
-  });
-
-  function mostrarLetra() {
-    var opcion = selCliente.options[selCliente.selectedIndex];
-    var letra = opcion && opcion.dataset.letra;
-    document.getElementById('titulo-letra').textContent = letra ? letra : '';
-    document.getElementById('aviso-letra').textContent = letra
-      ? 'A este cliente le corresponde Factura ' + letra + '.'
-      : 'Elegí un cliente para ver qué factura le corresponde.';
+    var primera = tbody.querySelector('[name=descripcion]');
+    if (primera && !primera.value) primera.focus();
   }
-  selCliente.addEventListener('change', mostrarLetra);
-
-  // Las fechas del servicio solo se piden si se facturan servicios.
-  function mostrarFechasServicio() {
-    document.getElementById('fechas-servicio').style.display = selConcepto.value === '1' ? 'none' : '';
-  }
-  selConcepto.addEventListener('change', mostrarFechasServicio);
-
-  // Si cambia la fecha de la factura, acompaña las fechas del servicio que estaban iguales.
-  var fecha = document.getElementById('fecha');
-  var fechaAnterior = fecha.value;
-  fecha.addEventListener('change', function () {
-    ['serv_desde', 'serv_hasta', 'vto_pago'].forEach(function (n) {
-      var campo = document.querySelector('[name=' + n + ']');
-      if (campo.value === fechaAnterior) campo.value = fecha.value;
-    });
-    fechaAnterior = fecha.value;
-  });
-
-  // Enter en un renglón no envía el formulario por accidente.
-  tbody.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') e.preventDefault();
-  });
-
-  mostrarLetra();
-  mostrarFechasServicio();
-  recalcular();
 })();

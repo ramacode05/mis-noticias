@@ -16,13 +16,12 @@ def create_app(config=None):
 
     os.makedirs(app.instance_path, exist_ok=True)
 
-    from . import db, clientes, conceptos, configuracion, facturas
+    from . import db, clientes, conceptos, facturas
     from .importes import formato_cantidad, formato_pesos
     db.init_app(app)
     app.register_blueprint(clientes.bp)
     app.register_blueprint(conceptos.bp)
     app.register_blueprint(facturas.bp)
-    app.register_blueprint(configuracion.bp)
 
     # Formatos para mostrar en las páginas.
     app.add_template_filter(formato_pesos, "pesos")

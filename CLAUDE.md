@@ -36,7 +36,6 @@ facturacion/            Código de la aplicación
   clientes.py           Pantallas de clientes
   conceptos.py          Pantallas de conceptos fijos (plantillas de detalle)
   facturas.py           Facturas A/B: alta en 4 pasos como ARCA, lista, ver, eliminar (solo de prueba)
-  configuracion.py      Configuración general (punto de venta de facturas y de remitos)
   importes.py           Lectura de números en formato argentino, cálculos y formato $
   templates/            Páginas HTML
   static/               Estilos (CSS) y factura.js (buscador de clientes y cálculo en vivo)
@@ -51,10 +50,13 @@ iniciar.bat             Abre el sistema en Windows
 
 - Hoy factura en la web de ARCA "Comprobantes en Línea" (RCEL), puntos de venta 00002 y 00003.
 - La pantalla "Nueva factura" imita los pasos de RCEL (el usuario lo pidió así):
-  1. Datos de emisión: fecha, conceptos a incluir, período facturado (desde/hasta/vto. pago).
+  1. Datos de emisión: punto de venta (lista PUNTOS_VENTA en facturas.py, propone el último
+     usado), fecha, conceptos a incluir, período facturado (desde/hasta/vto. pago).
      Sin moneda extranjera, actividades asociadas ni referencia comercial (no se usan).
   2. Datos del receptor: buscador de cliente por nombre o CUIT (mejora sobre RCEL), alta rápida
-     de cliente, condición de venta fija y remito asociado opcional.
+     de cliente, condición de venta fija y remito asociado opcional (punto de venta del remito
+     editable, 00001 por defecto).
+  No hay pantalla de Configuración: el usuario prefirió elegir todo en la factura, como en ARCA.
   3. Datos de la operación: solo descripción, cantidad y precio unitario (sin código, unidad de
      medida, bonificación ni tributos: no se usan).
   4. Resumen con "Modificar" por sección y "Confirmar Datos".
@@ -63,7 +65,7 @@ iniciar.bat             Abre el sistema en Windows
 - Concepto habitual: **Productos y Servicios** (código 3): pide período del servicio y vencimiento del pago.
 - Renglones con **cantidad y precio unitario sin IVA**.
 - Condición de venta: **siempre Cuenta Corriente** (no se elige).
-- **Remito R** asociado: opcional, uno por factura, punto de venta 00001 (configurable).
+- **Remito R** asociado: opcional, uno por factura, punto de venta 00001 por defecto.
   Avisa si el remito ya está en otra factura. En WSFEv1 irá como comprobante asociado (tipo 91).
 - Factura B: casi nunca; el usuario la hace en ARCA. El sistema la soporta igual (precio sin IVA).
 - La patente va como texto en el primer renglón: "Int. AB123CD" (renglón con precio 0 permitido).
@@ -73,6 +75,8 @@ iniciar.bat             Abre el sistema en Windows
 
 ## Mejoras propuestas para más adelante
 
+- Etapa 10: los puntos de venta 00002/00003 son "Factura en Línea"; para web services ARCA exige
+  uno nuevo tipo "RECE / web services" que habrá que agregar a PUNTOS_VENTA.
 - Con el certificado de ARCA (etapa 10): consultar el padrón por CUIT para completar razón social,
   domicilio y condición frente al IVA al cargar un cliente nuevo (como hace RCEL).
 - Notas de crédito generadas desde la factura (comprobante asociado automático).

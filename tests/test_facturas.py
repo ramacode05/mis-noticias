@@ -59,8 +59,8 @@ class BaseFacturas(unittest.TestCase):
     def datos(self, renglones=(("Int. AB123CD", "", "0"), ("Desarme y Reparación", "2", "30.000")),
               **extra):
         d = {"token": extra.pop("token", "t-" + os.urandom(4).hex()),
-             "fecha": HOY, "concepto": "3", "serv_desde": HOY, "serv_hasta": HOY, "vto_pago": HOY,
-             "cliente_id": "1", "remito_numero": "", "remito_confirmado": "", "observaciones": "",
+             "punto_venta": "2", "fecha": HOY, "concepto": "3", "serv_desde": HOY, "serv_hasta": HOY, "vto_pago": HOY,
+             "cliente_id": "1", "remito_pto_vta": "1", "remito_numero": "", "remito_confirmado": "", "observaciones": "",
              "descripcion": [r[0] for r in renglones],
              "cantidad": [r[1] for r in renglones],
              "precio": [r[2] for r in renglones]}
@@ -91,6 +91,8 @@ class PasosTest(BaseFacturas):
     def test_recorrido_completo(self):
         html = self.cli.get("/facturas/nueva").get_data(as_text=True)
         self.assertIn("DATOS DE EMISIÓN (PASO 1 DE 4)", html)
+        self.assertIn("00002-Av Los Quilmes 1856", html)
+        self.assertIn("00003-Av Los Quilmes 1856", html)
         html = self.paso(1, "continuar")
         self.assertIn("DATOS DEL RECEPTOR (PASO 2 DE 4)", html)
         html = self.paso(2, "continuar")
@@ -125,6 +127,7 @@ class PasosTest(BaseFacturas):
             ({"serv_hasta": AYER}, "no puede ser posterior"),
             ({"vto_pago": AYER}, "vencimiento no puede"),
             ({"fecha": ""}, "Escribí la fecha"),
+            ({"punto_venta": "7"}, "Elegí el punto de venta"),
         ]
         for cambios, mensaje in casos:
             with self.subTest(mensaje):
@@ -217,11 +220,15 @@ class RemitoTest(BaseFacturas):
         self.confirmar(remito_numero="6535", remito_confirmado="1")
         self.assertEqual(len(self.facturas()), 2)
 
-    def test_punto_de_venta_del_remito_configurable(self):
-        self.cli.post("/configuracion/", data={"punto_venta": "2", "remito_punto_venta": "4"})
-        self.confirmar(remito_numero="10")
+    def test_punto_de_venta_del_remito_se_escribe_en_el_paso_2(self):
+        self.confirmar(remito_pto_vta="00004", remito_numero="10")
         f = self.facturas()[0]
-        self.assertEqual((f["punto_venta"], f["remito_pto_vta"]), (2, 4))
+        self.assertEqual((f["remito_pto_vta"], f["remito_numero"]), (4, 10))
+        # El mismo número con otro punto de venta es otro remito: no avisa.
+        html = self.paso(2, "continuar", remito_pto_vta="1", remito_numero="10")
+        self.assertEqual(self.paso_mostrado(html), 3)
+        html = self.paso(2, "continuar", remito_pto_vta="x", remito_numero="10")
+        self.assertIn("punto de venta del remito", html)
 
 
 class ClienteNuevoTest(BaseFacturas):
@@ -253,7 +260,7 @@ class ListaYEliminarTest(BaseFacturas):
     def test_lista_ver_y_eliminar_prueba(self):
         self.confirmar()
         lista = self.cli.get("/facturas/").get_data(as_text=True)
-        self.assertIn("00001-00000001", lista)
+        self.assertIn("00002-00000001", lista)
         self.assertIn("PRUEBA", lista)
         self.assertIn("Transportes Sur SA", self.cli.get("/facturas/?q=transportes").get_data(as_text=True))
         self.assertNotIn("Transportes Sur SA", self.cli.get("/facturas/?mes=2000-01").get_data(as_text=True))
@@ -271,10 +278,18 @@ class ListaYEliminarTest(BaseFacturas):
         self.assertIn("no se pueden eliminar", r.get_data(as_text=True))
         self.assertEqual(len(self.facturas()), 1)
 
-    def test_configuracion_invalida(self):
-        html = self.cli.post("/configuracion/", data={"punto_venta": "abc", "remito_punto_venta": "1"}
-                             ).get_data(as_text=True)
-        self.assertIn("número entre 1 y 99998", html)
+    def test_numeracion_separada_por_punto_de_venta(self):
+        self.confirmar(punto_venta="2")
+        self.confirmar(punto_venta="3")
+        self.confirmar(punto_venta="2")
+        self.assertEqual([(f["punto_venta"], f["numero"]) for f in self.facturas()],
+                         [(2, 1), (3, 1), (2, 2)])
+        self.assertIn("00003-00000001", self.cli.get("/facturas/").get_data(as_text=True))
+
+    def test_propone_el_ultimo_punto_de_venta_usado(self):
+        self.confirmar(punto_venta="3")
+        html = self.cli.get("/facturas/nueva").get_data(as_text=True)
+        self.assertIn('<option value="3" selected>', html)
 
 
 class ActualizacionBaseTest(unittest.TestCase):
@@ -284,9 +299,8 @@ class ActualizacionBaseTest(unittest.TestCase):
         os.close(fd)
         try:
             con = sqlite3.connect(ruta)
-            esquema = ESQUEMA.read_text(encoding="utf-8").replace(
-                "INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('remito_punto_venta', '1');", "")
-            con.executescript(esquema)
+            con.executescript(ESQUEMA.read_text(encoding="utf-8"))
+            con.execute("INSERT INTO configuracion VALUES ('punto_venta', '1')")  # de la versión anterior
             con.execute("INSERT INTO clientes (razon_social, condicion_iva, tipo_doc) VALUES ('Viejo', 'CF', 'SIN')")
             con.execute("""INSERT INTO facturas (cbte_tipo, letra, punto_venta, numero, fecha, condicion_venta,
                 cliente_id, cliente_razon_social, cliente_condicion_iva, cliente_tipo_doc, cliente_nro_doc,
@@ -300,8 +314,6 @@ class ActualizacionBaseTest(unittest.TestCase):
             columnas = {c[1] for c in con.execute("PRAGMA table_info(facturas)")}
             self.assertTrue({"remito_pto_vta", "remito_numero", "token"} <= columnas)
             self.assertEqual(con.execute("SELECT count(*) FROM facturas").fetchone(), (1,))
-            self.assertEqual(con.execute("SELECT valor FROM configuracion WHERE clave = 'remito_punto_venta'"
-                                         ).fetchone(), ("1",))
             con.close()
             self.assertIn("Viejo", app.test_client().get("/facturas/").get_data(as_text=True))
         finally:

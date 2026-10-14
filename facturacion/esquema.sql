@@ -33,13 +33,12 @@ CREATE TABLE IF NOT EXISTS conceptos (
 CREATE UNIQUE INDEX IF NOT EXISTS conceptos_descripcion_unica
     ON conceptos (descripcion COLLATE NOCASE);
 
--- Configuración general (clave = valor): punto de venta de facturas y de remitos.
+-- Configuración general (clave = valor). Hoy sin uso: los puntos de venta se eligen en
+-- cada factura. Se deja para guardar datos de la empresa más adelante (PDF, ARCA).
 CREATE TABLE IF NOT EXISTS configuracion (
     clave           TEXT PRIMARY KEY,
     valor           TEXT NOT NULL
 );
-INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('punto_venta', '1');
-INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('remito_punto_venta', '1');
 
 -- Facturas. Los datos del cliente se copian en la factura: si después se edita el
 -- cliente, la factura ya emitida no cambia. Importes en centavos.

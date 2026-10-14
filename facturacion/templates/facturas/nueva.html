@@ -9,10 +9,10 @@
   <button type="submit" name="accion" value="{{ 'continuar' if paso < 4 else 'nada' }}" class="enter-oculto" tabindex="-1" aria-hidden="true"></button>
   <input type="hidden" name="token" value="{{ datos.token }}">
   <input type="hidden" name="paso" value="{{ paso }}">
-  {% for campo in ('fecha', 'concepto', 'serv_desde', 'serv_hasta', 'vto_pago') if paso != 1 %}
+  {% for campo in ('punto_venta', 'fecha', 'concepto', 'serv_desde', 'serv_hasta', 'vto_pago') if paso != 1 %}
     <input type="hidden" name="{{ campo }}" value="{{ datos[campo] }}">
   {% endfor %}
-  {% for campo in ('cliente_id', 'remito_numero', 'remito_confirmado') if paso != 2 %}
+  {% for campo in ('cliente_id', 'remito_pto_vta', 'remito_numero', 'remito_confirmado') if paso != 2 %}
     <input type="hidden" name="{{ campo }}" value="{{ datos[campo] }}">
   {% endfor %}
   {% if paso != 3 %}
@@ -52,6 +52,15 @@
     {# ---------------------------------------------------------------- PASO 1 #}
     {% if paso == 1 %}
     <div class="rcel-campos">
+      <label for="punto_venta">Punto de Ventas a utilizar</label>
+      <div>
+        <select name="punto_venta" id="punto_venta">
+          {% for numero, domicilio in PUNTOS_VENTA.items() %}
+            <option value="{{ numero }}" {% if datos.punto_venta == numero|string %}selected{% endif %}>{{ "%05d"|format(numero) }}-{{ domicilio }}</option>
+          {% endfor %}
+        </select>{{ error('punto_venta') }}
+      </div>
+
       <label for="fecha">Fecha del Comprobante</label>
       <div><input type="date" name="fecha" id="fecha" value="{{ datos.fecha }}">{{ error('fecha') }}</div>
 
@@ -139,7 +148,7 @@
       <div class="rcel-campos">
         <label for="remito_numero">Remito R</label>
         <div>
-          <span class="pto-vta">{{ "%05d"|format(remito_pto_vta) }}</span> -
+          <input name="remito_pto_vta" value="{{ '%05d'|format(datos.remito_pto_vta|int) if datos.remito_pto_vta.isdigit() else datos.remito_pto_vta }}" class="pto-vta-input" inputmode="numeric" maxlength="5" aria-label="Punto de venta del remito"> -
           <input name="remito_numero" id="remito_numero" value="{{ datos.remito_numero }}" class="corto" inputmode="numeric" maxlength="8" placeholder="Número">
           {{ error('remito_numero') }}
           {% if errores.remito_repetido %}
@@ -205,7 +214,7 @@
       <section>
         <h2>Datos de emisión <button type="submit" name="accion" value="ir_1" class="modificar" formnovalidate>Modificar</button></h2>
         <dl>
-          <dt>Punto de venta</dt><dd>{{ "%05d"|format(punto_venta) }}</dd>
+          <dt>Punto de venta</dt><dd>{{ "%05d"|format(datos.punto_venta|int) }}</dd>
           <dt>Fecha del comprobante</dt><dd>{{ datos.fecha|fecha }}</dd>
           <dt>Conceptos a incluir</dt><dd>{{ CONCEPTOS[datos.concepto|int] }}</dd>
           {% if datos.concepto != '1' %}
@@ -222,7 +231,7 @@
           {% if cliente.tipo_doc != 'SIN' %}<dt>{{ cliente.tipo_doc }}</dt><dd>{{ formatear_doc(cliente) }}</dd>{% endif %}
           <dt>Domicilio</dt><dd>{{ [cliente.domicilio, cliente.localidad]|select|join(', ') or '—' }}</dd>
           <dt>Condición de venta</dt><dd>{{ CONDICION_VENTA }}</dd>
-          <dt>Remito asociado</dt><dd>{% if datos.remito_numero %}Remito R {{ "%05d"|format(remito_pto_vta) }}-{{ "%08d"|format(datos.remito_numero|int) }}{% else %}—{% endif %}</dd>
+          <dt>Remito asociado</dt><dd>{% if datos.remito_numero %}Remito R {{ "%05d"|format(datos.remito_pto_vta|int) }}-{{ "%08d"|format(datos.remito_numero|int) }}{% else %}—{% endif %}</dd>
         </dl>
       </section>
     </div>

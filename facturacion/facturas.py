@@ -14,7 +14,6 @@ from datetime import date
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
-from .configuracion import leer_config
 from .db import get_db
 from .importes import a_centavos, a_centesimos, calcular_totales, subtotal
 from .validaciones import CONDICIONES_IVA, formatear_cuit, letra_factura, validar_cliente
@@ -25,6 +24,10 @@ bp = Blueprint("facturas", __name__, url_prefix="/facturas")
 CBTE_TIPO = {"A": 1, "B": 6}
 CONCEPTOS = {1: "Productos", 2: "Servicios", 3: "Productos y Servicios"}
 CONDICION_VENTA = "Cuenta Corriente"  # la empresa siempre vende en cuenta corriente
+# Puntos de venta habilitados en ARCA (se eligen en el paso 1, como en RCEL).
+PUNTOS_VENTA = {2: "Av Los Quilmes 1856 - Bernal, Buenos Aires",
+                3: "Av Los Quilmes 1856 - Bernal, Buenos Aires"}
+REMITO_PTO_VTA = 1  # punto de venta habitual de los remitos (se puede cambiar en el paso 2)
 # ARCA acepta la fecha de emisión hasta 5 días antes o después de hoy para productos
 # y hasta 10 días para servicios.
 DIAS_MARGEN = {1: 5, 2: 10, 3: 10}
@@ -32,8 +35,8 @@ DIAS_MARGEN = {1: 5, 2: 10, 3: 10}
 PASOS = {1: "Datos de emisión", 2: "Datos del receptor", 3: "Datos de la operación",
          4: "Resumen"}
 CAMPOS_PASO = {
-    1: ("fecha", "concepto", "serv_desde", "serv_hasta", "vto_pago"),
-    2: ("cliente_id", "remito_numero", "remito_confirmado"),
+    1: ("punto_venta", "fecha", "concepto", "serv_desde", "serv_hasta", "vto_pago"),
+    2: ("cliente_id", "remito_pto_vta", "remito_numero", "remito_confirmado"),
     3: ("observaciones",),
 }
 
@@ -67,16 +70,31 @@ def leer_formulario(form):
 
 def datos_iniciales(cliente_id=None):
     hoy = date.today().isoformat()
-    return {"token": uuid.uuid4().hex, "fecha": hoy, "concepto": "3", "serv_desde": hoy,
-            "serv_hasta": hoy, "vto_pago": hoy, "cliente_id": str(cliente_id or ""),
+    # Propone el punto de venta de la última factura (o el primero de la lista).
+    ultima = get_db().execute("SELECT punto_venta FROM facturas ORDER BY id DESC LIMIT 1").fetchone()
+    punto_venta = ultima["punto_venta"] if ultima and ultima["punto_venta"] in PUNTOS_VENTA \
+        else next(iter(PUNTOS_VENTA))
+    return {"token": uuid.uuid4().hex, "punto_venta": str(punto_venta), "fecha": hoy,
+            "concepto": "3", "serv_desde": hoy, "serv_hasta": hoy, "vto_pago": hoy,
+            "cliente_id": str(cliente_id or ""), "remito_pto_vta": str(REMITO_PTO_VTA),
             "remito_numero": "", "remito_confirmado": "", "observaciones": "",
             "renglones": []}
+
+
+def numero_o_none(texto, maximo):
+    """Convierte "00002" en 2. None si no es un número entre 1 y maximo."""
+    texto = (texto or "").replace(" ", "")
+    if not texto.isdigit() or not 1 <= int(texto) <= maximo:
+        return None
+    return int(texto)
 
 
 # --- Validaciones de cada paso ----------------------------------------------------------
 
 def validar_emision(datos):
     errores = {}
+    if numero_o_none(datos["punto_venta"], 99998) not in PUNTOS_VENTA:
+        errores["punto_venta"] = "Elegí el punto de venta."
     concepto = int(datos["concepto"]) if datos["concepto"].isdigit() else 0
     if concepto not in CONCEPTOS:
         errores["concepto"] = "Elegí qué se factura."
@@ -106,10 +124,10 @@ def buscar_cliente(datos):
                             (int(datos["cliente_id"]),)).fetchone()
 
 
-def factura_con_remito(numero):
+def factura_con_remito(pto_vta, numero):
     return get_db().execute(
         "SELECT * FROM facturas WHERE remito_pto_vta = ? AND remito_numero = ? ORDER BY id LIMIT 1",
-        (int(leer_config("remito_punto_venta")), numero)).fetchone()
+        (pto_vta, numero)).fetchone()
 
 
 def validar_receptor(datos):
@@ -119,19 +137,23 @@ def validar_receptor(datos):
         errores["cliente_id"] = "Elegí el cliente."
     else:
         letra = letra_factura(cliente["condicion_iva"])
-        ultima = ultima_factura(int(leer_config("punto_venta")), CBTE_TIPO[letra])
+        punto_venta = numero_o_none(datos["punto_venta"], 99998)
+        ultima = ultima_factura(punto_venta, CBTE_TIPO[letra]) if punto_venta else None
         if ultima and datos["fecha"] and datos["fecha"] < ultima["fecha"]:
             errores["cliente_id"] = (
                 f"La fecha del comprobante (paso 1) no puede ser anterior a la última Factura {letra} "
                 f"({date.fromisoformat(ultima['fecha']):%d/%m/%Y}). Volvé al paso 1 y cambiala.")
 
     if datos["remito_numero"]:
-        numero = datos["remito_numero"].replace(" ", "")
-        if not numero.isdigit() or len(numero) > 8 or int(numero) == 0:
+        pto_vta = numero_o_none(datos["remito_pto_vta"], 99998)
+        numero = numero_o_none(datos["remito_numero"], 99999999)
+        if pto_vta is None:
+            errores["remito_numero"] = "El punto de venta del remito tiene que ser un número (por ejemplo 00001)."
+        elif numero is None:
             errores["remito_numero"] = "Escribí solo el número del remito (hasta 8 números, sin guiones)."
         else:
-            datos["remito_numero"] = str(int(numero))
-            anterior = factura_con_remito(int(numero))
+            datos["remito_pto_vta"], datos["remito_numero"] = str(pto_vta), str(numero)
+            anterior = factura_con_remito(pto_vta, numero)
             if anterior and not datos["remito_confirmado"]:
                 errores["remito_numero"] = (
                     f"Este remito ya está en la Factura {anterior['letra']} N° {anterior['numero']} "
@@ -201,7 +223,7 @@ def guardar_factura(datos, cliente, renglones):
         if repetida:
             db.rollback()
             return repetida["id"]
-        punto_venta = int(leer_config("punto_venta"))
+        punto_venta = int(datos["punto_venta"])
         ultima = ultima_factura(punto_venta, cbte_tipo)
         numero = (ultima["numero"] if ultima else 0) + 1
         remito = int(datos["remito_numero"]) if datos["remito_numero"] else None
@@ -218,7 +240,7 @@ def guardar_factura(datos, cliente, renglones):
              cliente["razon_social"], cliente["condicion_iva"], cliente["tipo_doc"],
              cliente["nro_doc"], domicilio, totales["neto"], totales["iva"], totales["total"],
              datos["observaciones"],
-             int(leer_config("remito_punto_venta")) if remito else None, remito, datos["token"]),
+             int(datos["remito_pto_vta"]) if remito else None, remito, datos["token"]),
         )
         factura_id = cur.lastrowid
         db.executemany(
@@ -348,8 +370,7 @@ def nueva():
         clientes_json=clientes_json, conceptos=conceptos, renglones=renglones,
         totales=calcular_totales([(r["cantidad"], r["precio_unitario"]) for r in renglones]),
         nuevo_cliente=nuevo_cliente, CONCEPTOS=CONCEPTOS, CONDICION_VENTA=CONDICION_VENTA,
-        punto_venta=int(leer_config("punto_venta")),
-        remito_pto_vta=int(leer_config("remito_punto_venta")),
+        PUNTOS_VENTA=PUNTOS_VENTA,
     )
 
 

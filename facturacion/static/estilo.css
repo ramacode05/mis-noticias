@@ -80,7 +80,7 @@ table.totales tr.total td { font-size: 1.2rem; font-weight: bold; border-top: 2p
 .rcel-grupo > legend, .rcel-grupo > summary { color: #1f3a5f; padding-right: .5rem; font-size: 1rem; }
 .rcel-grupo .opcional { color: #8a96a8; }
 details.rcel-grupo > summary { cursor: pointer; color: #1f5fa8; margin-bottom: .8rem; }
-.pto-vta { display: inline-block; padding: .4rem .5rem; background: #f1f4f8; border: 1px solid #aab4c3; border-radius: 4px; }
+.rcel-campos input.pto-vta-input { width: 5.5rem; text-align: center; }
 .confirmar-remito { display: block; margin-top: .3rem; font-weight: normal; }
 .rcel-botones { display: flex; justify-content: center; gap: .6rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #dfe5ee; }
 .rcel-boton { background: #f3f4f6; color: #111; border: 1px solid #8f99a8; padding: .4rem 1rem; border-radius: 3px; font-size: 15px; }

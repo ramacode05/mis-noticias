@@ -26,6 +26,11 @@
     }
   });
 
+  // Minúsculas y sin tildes, para buscar "elastico" y encontrar "Elástico".
+  var normalizar = function (t) {
+    return (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  };
+
   // ------------------------------------------------------------------ Paso 1
   var concepto = document.getElementById('concepto');
   if (concepto) {
@@ -54,9 +59,6 @@
     var lista = document.getElementById('resultados-cliente');
     var seleccionado = -1;
 
-    var normalizar = function (t) {
-      return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    };
 
     var elegir = function (c) {
       document.getElementById('cliente_id').value = c.id;
@@ -217,6 +219,73 @@
         tr.querySelector('[name=precio]').focus();
       });
     }
+
+    // --- Autocompletar conceptos fijos mientras se escribe en la descripción ---
+    // Escribiendo "tras izq" sugiere "Desarme y Reparación en Elásticos Traseros Izquierdo".
+    var conceptos = JSON.parse((document.getElementById('datos-conceptos') || {}).textContent || '[]');
+    var sugerencias = document.createElement('ul');
+    sugerencias.className = 'resultados sugerencias';
+    sugerencias.hidden = true;
+    var campoActivo = null;
+    var elegida = -1;
+
+    var cerrarSugerencias = function () { sugerencias.hidden = true; elegida = -1; };
+
+    var marcarSugerencia = function () {
+      sugerencias.querySelectorAll('li').forEach(function (li, i) {
+        li.classList.toggle('activo', i === elegida);
+      });
+    };
+
+    var usarSugerencia = function (texto) {
+      campoActivo.value = texto;
+      cerrarSugerencias();
+      campoActivo.closest('tr').querySelector('[name=cantidad]').focus();
+      recalcular();
+    };
+
+    var mostrarSugerencias = function (campo) {
+      var escrito = normalizar(campo.value).trim();
+      var palabras = escrito.split(/\s+/).filter(Boolean);
+      sugerencias.innerHTML = '';
+      elegida = -1;
+      if (!conceptos.length || escrito.length < 2) { cerrarSugerencias(); return; }
+      var encontrados = conceptos.filter(function (c) {
+        var texto = normalizar(c);
+        return texto !== escrito && palabras.every(function (p) { return texto.indexOf(p) >= 0; });
+      }).slice(0, 10);
+      if (!encontrados.length) { cerrarSugerencias(); return; }
+      encontrados.forEach(function (c) {
+        var li = document.createElement('li');
+        li.textContent = c;
+        li.addEventListener('mousedown', function (e) { e.preventDefault(); usarSugerencia(c); });
+        sugerencias.appendChild(li);
+      });
+      campo.closest('td').appendChild(sugerencias);
+      campoActivo = campo;
+      sugerencias.hidden = false;
+      if (encontrados.length === 1) { elegida = 0; marcarSugerencia(); }
+    };
+
+    tbody.addEventListener('input', function (e) {
+      if (e.target.name === 'descripcion') mostrarSugerencias(e.target);
+    });
+    tbody.addEventListener('keydown', function (e) {
+      if (e.target.name !== 'descripcion' || sugerencias.hidden) return;
+      var items = sugerencias.querySelectorAll('li');
+      if (e.key === 'ArrowDown') {
+        elegida = Math.min(elegida + 1, items.length - 1); marcarSugerencia(); e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
+        elegida = Math.max(elegida - 1, 0); marcarSugerencia(); e.preventDefault();
+      } else if ((e.key === 'Enter' || e.key === 'Tab') && elegida >= 0) {
+        e.preventDefault(); usarSugerencia(items[elegida].textContent);
+      } else if (e.key === 'Escape') {
+        cerrarSugerencias();
+      }
+    });
+    tbody.addEventListener('focusout', function (e) {
+      if (e.target.name === 'descripcion') setTimeout(cerrarSugerencias, 150);
+    });
 
     recalcular();
     var primera = tbody.querySelector('[name=descripcion]');

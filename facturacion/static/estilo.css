@@ -125,3 +125,5 @@ section.resumen { display: block; margin-top: 1rem; }
   .rcel-campos > label { text-align: left; }
   .rcel-pie-operacion { flex-direction: column; }
 }
+td.celda-descripcion { position: relative; }
+.resultados.sugerencias { top: 100%; right: auto; min-width: 100%; width: max-content; max-width: 40rem; }

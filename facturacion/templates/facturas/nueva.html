@@ -173,7 +173,7 @@
       <tbody id="renglones">
         {% for r in datos.renglones %}
         <tr>
-          <td><textarea name="descripcion" rows="1" maxlength="1000">{{ r.descripcion }}</textarea></td>
+          <td class="celda-descripcion"><textarea name="descripcion" rows="1" maxlength="1000" placeholder="Escribí o buscá un concepto (ej: tras izq)">{{ r.descripcion }}</textarea></td>
           <td><input name="cantidad" value="{{ r.cantidad }}" class="num cant" placeholder="1" inputmode="decimal"></td>
           <td><input name="precio" value="{{ r.precio }}" class="num" placeholder="0,00" inputmode="decimal"></td>
           <td class="num subtotal"></td>
@@ -263,6 +263,10 @@
 {% if paso == 2 %}
 <script id="datos-clientes" type="application/json">
   {{ clientes_json|tojson }}
+</script>
+{% elif paso == 3 %}
+<script id="datos-conceptos" type="application/json">
+  {{ conceptos|map(attribute='descripcion')|list|tojson }}
 </script>
 {% endif %}
 <script src="{{ url_for('static', filename='factura.js') }}"></script>

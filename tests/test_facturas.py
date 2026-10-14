@@ -191,6 +191,16 @@ class PasosTest(BaseFacturas):
         self.assertIn("FACTURA B", html)
 
 
+class ConceptosEnFacturaTest(BaseFacturas):
+    def test_paso_3_trae_los_conceptos_activos_para_autocompletar(self):
+        self.cli.post("/conceptos/nuevo", data={"descripcion": "Desarme Traseros Izquierdo", "activo": "1"})
+        self.cli.post("/conceptos/nuevo", data={"descripcion": "Concepto viejo"})  # inactivo
+        html = self.paso(2, "continuar")
+        self.assertIn('id="datos-conceptos"', html)
+        self.assertIn('"Desarme Traseros Izquierdo"', html)
+        self.assertNotIn('"Concepto viejo"', html)
+
+
 class RemitoTest(BaseFacturas):
     def test_remito_se_guarda_y_se_busca(self):
         self.confirmar(remito_numero="00006535")

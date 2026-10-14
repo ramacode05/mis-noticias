@@ -58,7 +58,8 @@ iniciar.bat             Abre el sistema en Windows
      editable, 00001 por defecto).
   No hay pantalla de Configuración: el usuario prefirió elegir todo en la factura, como en ARCA.
   3. Datos de la operación: solo descripción, cantidad y precio unitario (sin código, unidad de
-     medida, bonificación ni tributos: no se usan).
+     medida, bonificación ni tributos: no se usan). Al escribir en la descripción se sugieren los
+     conceptos fijos que contienen esas palabras ("tras izq"), sin importar mayúsculas ni tildes.
   4. Resumen con "Modificar" por sección y "Confirmar Datos".
   Los datos de los pasos viajan en campos ocultos; se guarda recién al confirmar (con token
   para no duplicar si se toca dos veces).

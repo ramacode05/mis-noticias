@@ -105,3 +105,39 @@ class CerrarSistemaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PantallaCopiasTest(unittest.TestCase):
+    def setUp(self):
+        fd, self.ruta = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
+        self.local = tempfile.mkdtemp()
+        self.app = create_app({"TESTING": True, "DATABASE": self.ruta})
+        self.cli = self.app.test_client()
+
+    def tearDown(self):
+        os.remove(self.ruta)
+
+    def test_pantalla_lista_copias_de_esta_pc(self):
+        with mock.patch.dict(os.environ, {"LOCALAPPDATA": self.local}):
+            html = self.cli.get("/copias/").get_data(as_text=True)
+            self.assertIn("Todavía no hay copias", html)
+            copias.hacer_copia(self.ruta)
+            html = self.cli.get("/copias/").get_data(as_text=True)
+        self.assertIn("facturacion_", html)
+        self.assertIn(self.local, html)
+
+    def test_bajar_copia(self):
+        self.cli.post("/clientes/nuevo", data={"razon_social": "Cliente X", "condicion_iva": "CF",
+                                               "tipo_doc": "SIN", "activo": "1"})
+        r = self.cli.get("/copias/bajar")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("facturacion_copia_", r.headers["Content-Disposition"])
+        self.assertTrue(r.data.startswith(b"SQLite format 3"))
+        destino = os.path.join(self.local, "bajada.sqlite")
+        with open(destino, "wb") as f:
+            f.write(r.data)
+        r.close()
+        con = sqlite3.connect(destino)
+        self.assertEqual(con.execute("SELECT razon_social FROM clientes").fetchall(), [("Cliente X",)])
+        con.close()

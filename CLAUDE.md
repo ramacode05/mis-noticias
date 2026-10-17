@@ -56,7 +56,7 @@ facturacion/            Código de la aplicación
   resumen.py            Resumen mensual (ventas, cobros, detalle) y descarga en Excel
   excel.py              Arma archivos .xlsx con la biblioteca estándar de Python (zip + XML)
   candado.py            Aviso de "sistema en uso" entre las dos PCs (Google Drive)
-  copias.py             Copia de seguridad de la base en cada PC al abrir
+  copias.py             Copias de seguridad: automática al abrir, pantalla "Copias" y descarga manual
   templates/            Páginas HTML
   static/               Estilos (CSS) y factura.js (buscador de clientes y cálculo en vivo)
 instance/               Base de datos real (NO se sube a Git)
@@ -160,8 +160,10 @@ iniciar.bat             Abre el sistema en Windows
    Menú "Resumen mensual": ventas por tipo de comprobante (cantidad, neto, IVA, total; NC en
    negativo), cobros del mes y detalle de comprobantes (tipo libro IVA Ventas). "Bajar en Excel"
    arma un .xlsx con 3 hojas (Resumen, Comprobantes, Cobros) con `excel.py`, sin librerías extra.
-9. **Backup automático** (en parte hecho: copia local en cada PC al abrir, conserva 30)
-   Falta: botón de backup manual y, si hace falta, copias en otra ubicación.
+9. **Backup automático** ✅
+   Copia local en cada PC al abrir (conserva 30, fuera de Drive) + Google Drive. Menú "Copias":
+   lista de copias de esta PC y botón "Bajar una copia ahora" (copia consistente con la API de
+   backup de SQLite). Restaurar: a mano y guiado (no hay botón, a propósito).
 10. **Conexión con ARCA (homologación y luego producción)**
     Certificado digital, WSAA (autenticación) y WSFEv1 (obtener CAE).
     Primero en el ambiente de prueba de ARCA; después en producción.

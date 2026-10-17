@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Copias de seguridad{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Copias de seguridad</h1>
+  <a class="boton" href="{{ url_for('copias.bajar') }}">Bajar una copia ahora</a>
+</div>
+
+<div class="formulario ancho">
+  <p><strong>Tus datos ya están protegidos de tres formas:</strong></p>
+  <ol>
+    <li><strong>Google Drive</strong> guarda la carpeta del sistema en la nube.</li>
+    <li><strong>Cada vez que abrís el sistema</strong>, se guarda una copia en esta computadora
+        (se conservan las últimas 30).</li>
+    <li>Con el botón <strong>"Bajar una copia ahora"</strong> podés guardar una copia donde quieras:
+        un pendrive, tu mail, otra carpeta. Recomendado una vez por mes.</li>
+  </ol>
+  <p class="nota">Si alguna vez hace falta recuperar una copia, no la abras ni la copies a mano:
+     avisame y te guío paso a paso.</p>
+</div>
+
+<h2>Copias automáticas en esta computadora</h2>
+<p class="nota">Carpeta: <code>{{ carpeta }}</code></p>
+{% if copias %}
+<table>
+  <thead><tr><th>Archivo</th><th>Fecha</th><th class="num">Tamaño</th></tr></thead>
+  <tbody>
+  {% for nombre, fecha, kb in copias %}
+    <tr><td>{{ nombre }}</td><td>{{ fecha.strftime('%d/%m/%Y %H:%M') }}</td><td class="num">{{ kb }} KB</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="vacio">Todavía no hay copias en esta computadora. Se crean solas al abrir el sistema con iniciar.bat.</p>
+{% endif %}
+{% endblock %}

@@ -53,6 +53,8 @@ facturacion/            Código de la aplicación
   pdf.py                PDF de la factura con el diseño de ARCA (ReportLab) y QR de ARCA
   cobros.py             Cobros (por el total de una o varias facturas del cliente)
   cuentas.py            Cuentas corrientes: saldos de todos los clientes y movimientos de cada uno
+  resumen.py            Resumen mensual (ventas, cobros, detalle) y descarga en Excel
+  excel.py              Arma archivos .xlsx con la biblioteca estándar de Python (zip + XML)
   candado.py            Aviso de "sistema en uso" entre las dos PCs (Google Drive)
   copias.py             Copia de seguridad de la base en cada PC al abrir
   templates/            Páginas HTML
@@ -154,8 +156,10 @@ iniciar.bat             Abre el sistema en Windows
    pendientes y desde cuándo debe; en rojo más de 30 días) y total a cobrar. Cuenta de cada
    cliente: facturas pendientes con días, y movimientos (factura = debe; NC y cobro = haber) con
    saldo acumulado. Botón Imprimir (estilos de impresión sin menú).
-8. **Resumen mensual y Excel**
-   Ventas del mes (neto, IVA, total por tipo), cobros del mes, exportable a Excel.
+8. **Resumen mensual y Excel** ✅
+   Menú "Resumen mensual": ventas por tipo de comprobante (cantidad, neto, IVA, total; NC en
+   negativo), cobros del mes y detalle de comprobantes (tipo libro IVA Ventas). "Bajar en Excel"
+   arma un .xlsx con 3 hojas (Resumen, Comprobantes, Cobros) con `excel.py`, sin librerías extra.
 9. **Backup automático** (en parte hecho: copia local en cada PC al abrir, conserva 30)
    Falta: botón de backup manual y, si hace falta, copias en otra ubicación.
 10. **Conexión con ARCA (homologación y luego producción)**

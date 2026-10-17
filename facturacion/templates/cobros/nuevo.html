@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block titulo %}Registrar cobro{% endblock %}
+{% block contenido %}
+<h1>Registrar cobro</h1>
+<p class="nota">Los cobros son por el total de cada factura. Si el cliente pagó varias facturas juntas, marcalas todas.</p>
+
+{% for e in errores %}<div class="aviso error">{{ e }}</div>{% endfor %}
+
+<form method="get" class="formulario ancho" id="form-cliente">
+  <label>Cliente
+    <select name="cliente" onchange="this.form.submit()">
+      <option value="">— Elegí el cliente —</option>
+      {% for c in clientes %}
+        <option value="{{ c.id }}" {% if cliente and cliente.id == c.id %}selected{% endif %}>{{ c.razon_social }} — {{ c.cantidad }} factura(s) pendiente(s), {{ c.total|pesos }}</option>
+      {% endfor %}
+      {% if cliente and cliente.id not in clientes|map(attribute='id')|list %}
+        <option value="{{ cliente.id }}" selected>{{ cliente.razon_social }} — sin facturas pendientes</option>
+      {% endif %}
+    </select>
+    {% if not clientes %}<small>No hay facturas pendientes de cobro.</small>{% endif %}
+  </label>
+  <noscript><button type="submit">Ver facturas</button></noscript>
+</form>
+
+{% if cliente %}
+<form method="post" class="formulario ancho" id="form-cobro">
+  <input type="hidden" name="cliente" value="{{ cliente.id }}">
+  <input type="hidden" name="token" value="{{ datos.token }}">
+
+  {% if pendientes %}
+  <h2>Facturas pendientes de {{ cliente.razon_social }}</h2>
+  <table class="renglones tabla-cobro">
+    <thead><tr><th><input type="checkbox" id="marcar-todas" title="Marcar todas"></th><th>Fecha</th><th>Comprobante</th><th>Remito</th><th class="num">Total</th></tr></thead>
+    <tbody>
+    {% for f in pendientes %}
+      <tr>
+        <td><input type="checkbox" name="factura" value="{{ f.id }}" data-total="{{ f.total }}" {% if f.id in elegidas %}checked{% endif %}></td>
+        <td>{{ f.fecha|fecha }}</td>
+        <td>{{ f|nombre_cbte }} {{ f|nro_cbte }}{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}</td>
+        <td>{{ f.remito_numero or '' }}</td>
+        <td class="num">{{ f.total|pesos }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <table class="totales"><tr class="total"><td>Total cobrado</td><td class="num" id="total-cobro">$ 0,00</td></tr></table>
+
+  <div class="fila">
+    <label>Fecha del cobro
+      <input type="date" name="fecha" value="{{ datos.fecha }}">
+    </label>
+    <label>Medio de pago
+      <select name="medio">
+        {% for m in MEDIOS %}<option {% if datos.medio == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Referencia <small>(opcional: n° de cheque, de transferencia…)</small>
+      <input name="referencia" value="{{ datos.referencia }}" maxlength="100">
+    </label>
+  </div>
+  <label>Observaciones
+    <textarea name="observaciones" rows="2" maxlength="1000">{{ datos.observaciones }}</textarea>
+  </label>
+  <div class="acciones">
+    <button type="submit" class="boton" id="boton-registrar">Registrar cobro</button>
+    <a href="{{ url_for('cobros.lista') }}">Cancelar</a>
+  </div>
+  {% else %}
+  <p class="vacio">{{ cliente.razon_social }} no tiene facturas pendientes de cobro.</p>
+  {% endif %}
+</form>
+
+<script>
+  (function () {
+    var form = document.getElementById('form-cobro');
+    var casillas = form.querySelectorAll('input[name=factura]');
+    if (!casillas.length) return;
+    function pesos(cent) {
+      var entero = Math.floor(cent / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return '$ ' + entero + ',' + String(cent % 100).padStart(2, '0');
+    }
+    function sumar() {
+      var total = 0;
+      casillas.forEach(function (c) { if (c.checked) total += parseInt(c.dataset.total, 10); });
+      document.getElementById('total-cobro').textContent = pesos(total);
+    }
+    casillas.forEach(function (c) { c.addEventListener('change', sumar); });
+    document.getElementById('marcar-todas').addEventListener('change', function () {
+      var marcar = this.checked;
+      casillas.forEach(function (c) { c.checked = marcar; });
+      sumar();
+    });
+    form.addEventListener('submit', function (e) {
+      if (form.dataset.enviado) { e.preventDefault(); return; }
+      form.dataset.enviado = '1';
+      var b = document.getElementById('boton-registrar');
+      setTimeout(function () { b.disabled = true; b.textContent = 'Registrando…'; }, 0);
+    });
+    sumar();
+  })();
+</script>
+{% endif %}
+{% endblock %}

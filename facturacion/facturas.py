@@ -15,6 +15,7 @@ from datetime import date
 from flask import (Blueprint, Response, abort, flash, redirect, render_template, request,
                    url_for)
 
+from .cobros import cobro_de
 from .db import get_db
 from .importes import a_centavos, a_centesimos, calcular_totales, subtotal
 from .validaciones import CONDICIONES_IVA, formatear_cuit, letra_factura, validar_cliente
@@ -316,9 +317,10 @@ def lista():
     # Facturas anuladas por una nota de crédito (para marcarlas en la lista).
     anuladas = {fila["asociado_id"]: fila for fila in get_db().execute(
         "SELECT asociado_id, punto_venta, numero, letra FROM facturas WHERE asociado_id IS NOT NULL")}
+    cobradas = {fila["factura_id"] for fila in get_db().execute("SELECT factura_id FROM cobro_facturas")}
     total = sum(-f["total"] if es_nota_credito(f) else f["total"] for f in facturas)
     return render_template("facturas/lista.html", facturas=facturas, q=q, mes=mes, total=total,
-                           anuladas=anuladas, es_nota_credito=es_nota_credito)
+                           anuladas=anuladas, cobradas=cobradas, es_nota_credito=es_nota_credito)
 
 
 @bp.route("/nueva", methods=("GET", "POST"))
@@ -402,7 +404,7 @@ def ver(id):
     asociada = (db.execute("SELECT * FROM facturas WHERE id = ?", (factura["asociado_id"],)).fetchone()
                 if factura["asociado_id"] else None)
     return render_template("facturas/ver.html", f=factura, renglones=renglones, CONCEPTOS=CONCEPTOS,
-                           es_nc=es_nota_credito(factura), asociada=asociada,
+                           es_nc=es_nota_credito(factura), asociada=asociada, cobro=cobro_de(id),
                            nota_credito=None if es_nota_credito(factura) else nota_credito_de(id))
 
 
@@ -439,6 +441,9 @@ def eliminar(id):
     if nota_credito_de(id):
         flash("Esta factura tiene una nota de crédito: eliminá primero la nota de crédito.", "error")
         return redirect(url_for("facturas.ver", id=id))
+    if cobro_de(id):
+        flash("Esta factura tiene un cobro registrado: eliminá primero el cobro.", "error")
+        return redirect(url_for("facturas.ver", id=id))
     db.execute("DELETE FROM factura_renglones WHERE factura_id = ?", (id,))
     db.execute("DELETE FROM facturas WHERE id = ?", (id,))
     db.commit()
@@ -452,6 +457,9 @@ def validar_nota_credito(factura, fecha_texto):
     """Devuelve un mensaje de error, o None si se puede hacer la nota de crédito."""
     if es_nota_credito(factura):
         return "Una nota de crédito no se puede anular con otra nota de crédito."
+    if cobro_de(factura["id"]):
+        return ("La factura ya está cobrada. Si hay que anularla, primero eliminá el cobro "
+                "(Cobros → Ver → Eliminar cobro).")
     anterior = nota_credito_de(factura["id"])
     if anterior:
         return (f"Esta factura ya tiene la Nota de Crédito {anterior['letra']} "
@@ -531,8 +539,9 @@ def nota_credito(id):
             flash(f"Nota de Crédito {nota['letra']} N° {nota['numero']} generada"
                   f"{' (de prueba)' if nota['prueba'] else ''}. La factura quedó anulada.", "ok")
             return redirect(url_for("facturas.ver", id=nota_id))
-    elif not es_nota_credito(factura) and nota_credito_de(id):
-        error = validar_nota_credito(factura, datos["fecha"])
+    else:
+        error = validar_nota_credito(factura, datos["fecha"]) if (
+            es_nota_credito(factura) or nota_credito_de(id) or cobro_de(id)) else None
     renglones = db.execute("SELECT * FROM factura_renglones WHERE factura_id = ? ORDER BY orden",
                            (id,)).fetchall()
     return render_template("facturas/nota_credito.html", f=factura, renglones=renglones, datos=datos,

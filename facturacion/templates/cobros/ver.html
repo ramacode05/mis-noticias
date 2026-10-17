@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Cobro del {{ c.fecha|fecha }}{% endblock %}
+{% block contenido %}
+<h1>Cobro del {{ c.fecha|fecha }}</h1>
+<div class="formulario ancho">
+  <div class="fila datos">
+    <div>
+      <strong>Cliente:</strong> {{ c.razon_social }}<br>
+      <strong>Medio de pago:</strong> {{ c.medio }}<br>
+      {% if c.referencia %}<strong>Referencia:</strong> {{ c.referencia }}<br>{% endif %}
+    </div>
+    <div>
+      <strong>Total cobrado:</strong> {{ c.total|pesos }}<br>
+      {% if c.observaciones %}<strong>Observaciones:</strong> {{ c.observaciones }}{% endif %}
+    </div>
+  </div>
+  <h2>Facturas que paga</h2>
+  <table class="renglones">
+    <thead><tr><th>Fecha</th><th>Comprobante</th><th>Remito</th><th class="num">Total</th></tr></thead>
+    <tbody>
+    {% for f in facturas %}
+      <tr><td>{{ f.fecha|fecha }}</td>
+          <td><a href="{{ url_for('facturas.ver', id=f.id) }}">{{ f|nombre_cbte }} {{ f|nro_cbte }}</a>{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}</td>
+          <td>{{ f.remito_numero or '' }}</td><td class="num">{{ f.total|pesos }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="acciones pie">
+  <a href="{{ url_for('cobros.lista') }}">← Volver a cobros</a>
+  <form method="post" action="{{ url_for('cobros.eliminar', id=c.id) }}"
+        onsubmit="return confirm('¿Eliminar este cobro? Las facturas vuelven a quedar pendientes.');">
+    <button type="submit" class="boton peligro">Eliminar cobro (cargado por error)</button>
+  </form>
+</div>
+{% endblock %}

@@ -22,7 +22,7 @@
   {% for f in facturas %}
     <tr>
       <td>{{ f.fecha|fecha }}</td>
-      <td>{% if es_nota_credito(f) %}<span class="tipo-nc" title="Nota de crédito">NC</span>{% endif %}<span class="letra">{{ f.letra }}</span> {{ f|nro_cbte }}{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}{% if f.id in anuladas %} <span class="etiqueta-anulada" title="Anulada por nota de crédito">ANULADA</span>{% endif %}</td>
+      <td>{% if es_nota_credito(f) %}<span class="tipo-nc" title="Nota de crédito">NC</span>{% endif %}<span class="letra">{{ f.letra }}</span> {{ f|nro_cbte }}{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}{% if f.id in anuladas %} <span class="etiqueta-anulada" title="Anulada por nota de crédito">ANULADA</span>{% endif %}{% if f.id in cobradas %} <span class="etiqueta-cobrada">COBRADA</span>{% endif %}</td>
       <td>{{ f.cliente_razon_social }}</td>
       <td>{{ f.remito_numero or '' }}</td>
       {% set signo = -1 if es_nota_credito(f) else 1 %}

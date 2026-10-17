@@ -88,3 +88,26 @@ CREATE TABLE IF NOT EXISTS factura_renglones (
     subtotal            INTEGER NOT NULL            -- en centavos, sin IVA
 );
 CREATE INDEX IF NOT EXISTS factura_renglones_factura ON factura_renglones (factura_id);
+
+-- Cobros. Siempre por el total de cada factura; un cobro puede pagar varias facturas del
+-- mismo cliente (por ejemplo, una transferencia por tres facturas). Importes en centavos.
+CREATE TABLE IF NOT EXISTS cobros (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id      INTEGER NOT NULL REFERENCES clientes (id),
+    fecha           TEXT NOT NULL,              -- AAAA-MM-DD
+    medio           TEXT NOT NULL,
+    referencia      TEXT NOT NULL DEFAULT '',   -- número de cheque, de transferencia, etc.
+    total           INTEGER NOT NULL,
+    observaciones   TEXT NOT NULL DEFAULT '',
+    token           TEXT UNIQUE,                -- evita duplicar si se confirma dos veces
+    creado          TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX IF NOT EXISTS cobros_cliente ON cobros (cliente_id);
+
+-- Qué facturas paga cada cobro. Una factura se cobra una sola vez.
+CREATE TABLE IF NOT EXISTS cobro_facturas (
+    cobro_id        INTEGER NOT NULL REFERENCES cobros (id) ON DELETE CASCADE,
+    factura_id      INTEGER NOT NULL UNIQUE REFERENCES facturas (id),
+    importe         INTEGER NOT NULL,
+    PRIMARY KEY (cobro_id, factura_id)
+);

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Cobros{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Cobros</h1>
+  <a class="boton" href="{{ url_for('cobros.nuevo') }}">+ Registrar cobro</a>
+</div>
+
+<form class="busqueda" method="get">
+  <label>Mes <input type="month" name="mes" value="{{ mes }}"></label>
+  <button type="submit">Buscar</button>
+  {% if mes %}<a href="{{ url_for('cobros.lista') }}">Limpiar</a>{% endif %}
+</form>
+
+{% if cobros %}
+<table>
+  <thead><tr><th>Fecha</th><th>Cliente</th><th>Medio</th><th>Referencia</th><th class="num">Facturas</th><th class="num">Total</th><th></th></tr></thead>
+  <tbody>
+  {% for c in cobros %}
+    <tr>
+      <td>{{ c.fecha|fecha }}</td>
+      <td>{{ c.razon_social }}</td>
+      <td>{{ c.medio }}</td>
+      <td>{{ c.referencia }}</td>
+      <td class="num">{{ c.cantidad }}</td>
+      <td class="num"><strong>{{ c.total|pesos }}</strong></td>
+      <td class="accion"><a href="{{ url_for('cobros.ver', id=c.id) }}">Ver</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="5">{{ cobros|length }} cobro(s)</td><td class="num"><strong>{{ total|pesos }}</strong></td><td></td></tr></tfoot>
+</table>
+{% else %}
+<p class="vacio">{% if mes %}No hay cobros en ese mes.{% else %}Todavía no hay cobros registrados.{% endif %}</p>
+{% endif %}
+{% endblock %}

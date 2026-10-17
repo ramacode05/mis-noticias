@@ -27,7 +27,7 @@
       <td><span class="letra">{{ letra_factura(c.condicion_iva) }}</span></td>
       <td>{{ c.localidad }}</td>
       <td>{{ c.telefono }}</td>
-      <td class="accion"><a href="{{ url_for('clientes.editar', id=c.id) }}">Editar</a>{% if c.activo %} · <a href="{{ url_for('facturas.nueva', cliente=c.id) }}">Facturar</a>{% endif %}</td>
+      <td class="accion"><a href="{{ url_for('clientes.editar', id=c.id) }}">Editar</a>{% if c.activo %} · <a href="{{ url_for('facturas.nueva', cliente=c.id) }}">Facturar</a>{% endif %} · <a href="{{ url_for('cuentas.cuenta', cliente_id=c.id) }}">Cuenta</a></td>
     </tr>
   {% endfor %}
   </tbody>

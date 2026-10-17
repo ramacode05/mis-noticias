@@ -12,9 +12,9 @@
     <nav>
       <a href="{{ url_for('facturas.lista') }}">Facturas</a>
       <a href="{{ url_for('cobros.lista') }}">Cobros</a>
+      <a href="{{ url_for('cuentas.lista') }}">Cuentas corrientes</a>
       <a href="{{ url_for('clientes.lista') }}">Clientes</a>
       <a href="{{ url_for('conceptos.lista') }}">Conceptos</a>
-      <span class="pronto" title="Próximas etapas">Próximamente: cuentas corrientes</span>
     </nav>
     <form method="post" action="{{ url_for('cerrar') }}" class="cerrar-sistema"
           onsubmit="return confirm('¿Cerrar el sistema? Hacelo siempre antes de usarlo en la otra computadora.');">

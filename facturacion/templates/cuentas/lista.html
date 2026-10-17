@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Cuentas corrientes{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Cuentas corrientes</h1>
+  <button type="button" class="boton secundario no-imprimir" onclick="window.print()">Imprimir</button>
+</div>
+
+<form class="busqueda no-imprimir" method="get">
+  <label><input type="checkbox" name="todos" value="1" {% if todos %}checked{% endif %} onchange="this.form.submit()"> Mostrar también los clientes que no deben nada</label>
+</form>
+
+{% if filas %}
+<table>
+  <thead><tr><th>Cliente</th><th class="num">Facturado</th><th class="num">Notas de crédito</th><th class="num">Cobrado</th><th class="num">Saldo</th><th class="num">Facturas pendientes</th><th>Debe desde</th><th class="no-imprimir"></th></tr></thead>
+  <tbody>
+  {% for f in filas %}
+    <tr>
+      <td>{{ f.razon_social }}</td>
+      <td class="num">{{ f.facturado|pesos }}</td>
+      <td class="num">{{ f.notas_credito|pesos }}</td>
+      <td class="num">{{ f.cobrado|pesos }}</td>
+      <td class="num"><strong>{{ f.saldo|pesos }}</strong></td>
+      <td class="num">{{ f.pendientes or '' }}</td>
+      <td class="sin-corte">{% if f.pendiente_desde %}{{ f.pendiente_desde|fecha }} <small class="{{ 'atrasado' if f.dias > 30 else '' }}">({{ f.dias }} días)</small>{% endif %}</td>
+      <td class="accion no-imprimir"><a href="{{ url_for('cuentas.cuenta', cliente_id=f.id) }}">Ver cuenta</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="4">Total a cobrar</td><td class="num"><strong>{{ total|pesos }}</strong></td><td colspan="3"></td></tr></tfoot>
+</table>
+<p class="nota no-imprimir">En rojo, las deudas de más de 30 días.</p>
+{% else %}
+<p class="vacio">{% if todos %}Todavía no hay facturas.{% else %}Ningún cliente tiene saldo pendiente.{% endif %}</p>
+{% endif %}
+{% endblock %}

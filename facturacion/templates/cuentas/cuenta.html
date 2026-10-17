@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block titulo %}Cuenta corriente - {{ cliente.razon_social }}{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Cuenta corriente: {{ cliente.razon_social }}</h1>
+  <div class="acciones no-imprimir">
+    {% if pendientes %}<a class="boton" href="{{ url_for('cobros.nuevo', cliente=cliente.id) }}">Registrar cobro</a>{% endif %}
+    <a class="boton secundario" href="{{ url_for('facturas.nueva', cliente=cliente.id) }}">+ Nueva factura</a>
+    <button type="button" class="boton secundario" onclick="window.print()">Imprimir</button>
+  </div>
+</div>
+<p class="nota">{% if cliente.tipo_doc != 'SIN' %}{{ cliente.tipo_doc }} {{ formatear_doc(cliente) }} · {% endif %}{{ CONDICIONES_IVA[cliente.condicion_iva] }} · Saldo al {{ hoy|fecha }}: <strong>{{ saldo|pesos }}</strong></p>
+
+<h2>Facturas pendientes de cobro</h2>
+{% if pendientes %}
+<table>
+  <thead><tr><th>Fecha</th><th>Comprobante</th><th>Remito</th><th class="num">Días</th><th class="num">Total</th></tr></thead>
+  <tbody>
+  {% for f in pendientes %}
+    <tr>
+      <td>{{ f.fecha|fecha }}</td>
+      <td><a href="{{ url_for('facturas.ver', id=f.id) }}">{{ f|nombre_cbte }} {{ f|nro_cbte }}</a>{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}</td>
+      <td>{{ f.remito_numero or '' }}</td>
+      <td class="num {{ 'atrasado' if f.dias > 30 else '' }}">{{ f.dias }}</td>
+      <td class="num">{{ f.total|pesos }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="4">Total pendiente</td><td class="num"><strong>{{ pendientes|sum(attribute='total')|pesos }}</strong></td></tr></tfoot>
+</table>
+{% else %}
+<p class="vacio">No tiene facturas pendientes.</p>
+{% endif %}
+
+<h2>Movimientos</h2>
+{% if movimientos %}
+<table>
+  <thead><tr><th>Fecha</th><th>Comprobante / movimiento</th><th>Remito</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr></thead>
+  <tbody>
+  {% for m in movimientos %}
+    <tr>
+      <td>{{ m.fecha|fecha }}</td>
+      <td>
+        {% if m.tipo == 'cobro' %}<a href="{{ url_for('cobros.ver', id=m.id) }}">{{ m.detalle }}</a>
+        {% else %}<a href="{{ url_for('facturas.ver', id=m.id) }}">{{ m.detalle }}</a>{% endif %}
+        {% if m.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}
+      </td>
+      <td>{{ m.remito or '' }}</td>
+      <td class="num">{{ m.debe|pesos if m.debe else '' }}</td>
+      <td class="num">{{ m.haber|pesos if m.haber else '' }}</td>
+      <td class="num"><strong>{{ m.saldo|pesos }}</strong></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="vacio">Todavía no tiene movimientos.</p>
+{% endif %}
+<p class="no-imprimir"><a href="{{ url_for('cuentas.lista') }}">← Volver a cuentas corrientes</a></p>
+{% endblock %}

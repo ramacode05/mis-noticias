@@ -4,7 +4,7 @@ import json
 import re
 import sqlite3
 
-from facturacion.pdf import datos_qr, generar_pdf, nombre_archivo
+from facturacion.pdf import datos_qr, generar_pdf, importe, nombre_archivo
 from tests.test_facturas import BaseFacturas
 
 
@@ -30,6 +30,11 @@ class PdfTest(BaseFacturas):
         self.assertEqual(paginas(r.data), 3)
         self.assertIn("30707871918_001_00002_00000001_PRUEBA.pdf", r.headers["Content-Disposition"])
         self.assertEqual(paginas(self.cli.get("/facturas/1/pdf?copias=1").data), 1)
+
+    def test_importes_como_arca(self):
+        self.assertEqual(importe(33577500), "335775,00")
+        self.assertEqual(importe(5), "0,05")
+        self.assertEqual(importe(150000000), "1500000,00")
 
     def test_factura_inexistente(self):
         self.assertEqual(self.cli.get("/facturas/99/pdf").status_code, 404)

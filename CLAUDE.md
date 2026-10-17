@@ -116,6 +116,8 @@ iniciar.bat             Abre el sistema en Windows
    ?copias=1), paginado si hay muchos renglones. Nombre de archivo como ARCA
    (CUIT_TIPO_PTOVTA_NUMERO.pdf). Las de prueba llevan marca de agua "PRUEBA - SIN VALIDEZ FISCAL"
    y un recuadro en lugar del QR; el QR (RG 4892) se dibuja solo cuando hay CAE (etapa 10).
+   Importes como ARCA (150000,00, sin puntos de miles). NO lleva el logo de ARCA ni su leyenda
+   "Esta Agencia no se responsabiliza...": eso lo agrega ARCA solo a los PDF que genera su web.
 5. **Notas de crédito**
    NC A/B asociadas a una factura (total, que es lo habitual cuando se anula).
 6. **Cobros**

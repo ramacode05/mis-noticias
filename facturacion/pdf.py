@@ -18,7 +18,6 @@ from reportlab.lib.utils import simpleSplit
 from reportlab.pdfgen.canvas import Canvas
 
 from .emisor import EMISOR
-from .importes import formato_pesos
 from .validaciones import CONDICIONES_IVA
 
 ANCHO, ALTO = A4
@@ -56,11 +55,14 @@ def fecha(iso):
 
 
 def importe(centavos):
-    return formato_pesos(centavos, signo=False)
+    """Como ARCA: sin puntos de miles y con coma decimal (150000,00)."""
+    signo = "-" if centavos < 0 else ""
+    centavos = abs(centavos)
+    return f"{signo}{centavos // 100},{centavos % 100:02d}"
 
 
 def cantidad(centesimos):
-    return formato_pesos(centesimos, signo=False)  # mismo formato: 1,00 / 2,50
+    return importe(centesimos)  # mismo formato: 1,00 / 2,50
 
 
 def nombre_archivo(f):

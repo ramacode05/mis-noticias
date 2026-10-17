@@ -130,3 +130,14 @@ td.celda-descripcion { position: relative; }
 .cerrar-sistema { margin-left: auto; }
 .cerrar-sistema button { background: transparent; border: 1px solid #9fb3cc; color: #fff; padding: .3rem .8rem; font-size: 14px; }
 .cerrar-sistema button:hover { background: #2c4d78; }
+.etiqueta-anulada { display: inline-block; font-size: .75rem; font-weight: bold; color: #8a1f1f; background: #fbe3e3; border: 1px solid #d99; border-radius: 3px; padding: 0 .4rem; vertical-align: middle; }
+.tipo-nc { display: inline-block; font-size: .7rem; font-weight: bold; color: #fff; background: #8a1f1f; border-radius: 3px; padding: 0 .3rem; margin-right: .25rem; vertical-align: middle; }
+.aviso-info { background: #e9f1fb; color: #1f3a5f; }
+.nc-form { padding: 0 1.5rem; }
+.nc-form > .nota { margin: 1rem 0; }
+.observaciones-nc { display: block; font-weight: bold; max-width: 40rem; margin-top: 1rem; }
+.observaciones-nc textarea { display: block; width: 100%; margin-top: .3rem; padding: .4rem; font-family: inherit; font-size: 15px; border: 1px solid #aab4c3; border-radius: 4px; }
+a.rcel-boton { text-decoration: none; display: inline-block; }
+td.num { white-space: nowrap; }
+.encabezado { flex-wrap: wrap; gap: .8rem; }
+.encabezado .acciones .boton { white-space: nowrap; }

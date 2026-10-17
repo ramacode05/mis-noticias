@@ -40,11 +40,11 @@ CREATE TABLE IF NOT EXISTS configuracion (
     valor           TEXT NOT NULL
 );
 
--- Facturas. Los datos del cliente se copian en la factura: si después se edita el
+-- Facturas y notas de crédito (comprobantes). Los datos del cliente se copian en la factura: si después se edita el
 -- cliente, la factura ya emitida no cambia. Importes en centavos.
 CREATE TABLE IF NOT EXISTS facturas (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    cbte_tipo           INTEGER NOT NULL,           -- código ARCA: 1 = Factura A, 6 = Factura B
+    cbte_tipo           INTEGER NOT NULL,           -- código ARCA: 1/6 = Factura A/B, 3/8 = Nota de Crédito A/B
     letra               TEXT NOT NULL CHECK (letra IN ('A', 'B')),
     punto_venta         INTEGER NOT NULL,
     numero              INTEGER NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS facturas (
     observaciones       TEXT NOT NULL DEFAULT '',
     cae                 TEXT,
     cae_vto             TEXT,
-    -- remito_pto_vta, remito_numero y token se agregan desde db.py (COLUMNAS_NUEVAS).
+    -- remito_pto_vta, remito_numero, token y asociado_id se agregan desde db.py (COLUMNAS_NUEVAS).
     creado              TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 

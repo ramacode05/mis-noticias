@@ -28,6 +28,7 @@ COLUMNAS_NUEVAS = [
     ("facturas", "remito_pto_vta", "INTEGER"),
     ("facturas", "remito_numero", "INTEGER"),
     ("facturas", "token", "TEXT"),
+    ("facturas", "asociado_id", "INTEGER"),  # en una nota de crédito: la factura que anula
 ]
 
 # Índices sobre columnas nuevas: se crean después de agregar las columnas.
@@ -35,6 +36,7 @@ INDICES_NUEVOS = [
     "CREATE INDEX IF NOT EXISTS facturas_remito ON facturas (remito_pto_vta, remito_numero)",
     # Evita guardar dos veces la misma factura si se toca "Confirmar" dos veces.
     "CREATE UNIQUE INDEX IF NOT EXISTS facturas_token ON facturas (token) WHERE token IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS facturas_asociado ON facturas (asociado_id)",
 ]
 
 

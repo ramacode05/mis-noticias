@@ -46,7 +46,8 @@ facturacion/            Código de la aplicación
   validaciones.py       Validaciones (CUIT, DNI, etc.)
   clientes.py           Pantallas de clientes
   conceptos.py          Pantallas de conceptos fijos (plantillas de detalle)
-  facturas.py           Facturas A/B: alta en 4 pasos como ARCA, lista, ver, eliminar (solo de prueba)
+  facturas.py           Facturas A/B: alta en 4 pasos como ARCA, lista, ver, eliminar (solo de prueba);
+                        notas de crédito por el total desde la factura
   importes.py           Lectura de números en formato argentino, cálculos y formato $
   emisor.py             Datos de la empresa que emite (razón social, CUIT, IIBB, inicio de actividades)
   pdf.py                PDF de la factura con el diseño de ARCA (ReportLab) y QR de ARCA
@@ -96,7 +97,7 @@ iniciar.bat             Abre el sistema en Windows
   uno nuevo tipo "RECE / web services" que habrá que agregar a PUNTOS_VENTA.
 - Con el certificado de ARCA (etapa 10): consultar el padrón por CUIT para completar razón social,
   domicilio y condición frente al IVA al cargar un cliente nuevo (como hace RCEL).
-- Notas de crédito generadas desde la factura (comprobante asociado automático).
+- Notas de crédito parciales (por una parte de la factura): hoy solo por el total.
 - Facturas de Crédito Electrónicas MiPyMEs (FCE): ARCA las exige a ciertos clientes grandes
   por encima de un monto; revisar si algún cliente lo requiere.
 
@@ -132,8 +133,12 @@ iniciar.bat             Abre el sistema en Windows
    Importes como ARCA (150000,00, sin puntos de miles); condiciones frente al IVA con los
    textos de ARCA; domicilio y localidad separados por " - ". NO lleva el logo de ARCA ni su leyenda
    "Esta Agencia no se responsabiliza...": eso lo agrega ARCA solo a los PDF que genera su web.
-5. **Notas de crédito**
-   NC A/B asociadas a una factura (total, que es lo habitual cuando se anula).
+5. **Notas de crédito** ✅
+   Desde la factura, botón "Hacer nota de crédito (anular)": NC A/B (códigos 3/8) por el total,
+   copia renglones y datos del cliente, `asociado_id` = factura anulada, numeración propia por punto
+   de venta. Fecha >= factura, vto. de pago = fecha de la NC. Una sola NC por factura. La lista
+   resta las NC y marca la factura como ANULADA. PDF con "NOTA DE CREDITO", COD. 03/08 y
+   "Comprobante Asociado". En WSFEv1 la factura irá en CbtesAsoc.
 6. **Cobros**
    Registrar cobro de una factura por su total: fecha, medio de pago, observaciones.
 7. **Cuenta corriente por cliente**

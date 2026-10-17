@@ -30,6 +30,7 @@ def create_app(config=None):
     app.add_template_filter(lambda iso: date.fromisoformat(iso).strftime("%d/%m/%Y") if iso else "",
                             "fecha")
     app.add_template_filter(lambda f: f"{f['punto_venta']:05d}-{f['numero']:08d}", "nro_cbte")
+    app.add_template_filter(lambda f: facturas.NOMBRE_CBTE.get(f["cbte_tipo"], ""), "nombre_cbte")
 
     @app.route("/")
     def inicio():

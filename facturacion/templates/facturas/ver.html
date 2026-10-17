@@ -1,14 +1,25 @@
 {% extends "base.html" %}
-{% block titulo %}Factura {{ f.letra }} {{ f|nro_cbte }}{% endblock %}
+{% block titulo %}{{ f|nombre_cbte }} {{ f|nro_cbte }}{% endblock %}
 {% block contenido %}
 <div class="encabezado">
-  <h1>Factura {{ f.letra }} N° {{ f|nro_cbte }} {% if f.prueba %}<span class="etiqueta-prueba">PRUEBA</span>{% endif %}</h1>
+  <h1>{{ f|nombre_cbte }} N° {{ f|nro_cbte }} {% if f.prueba %}<span class="etiqueta-prueba">PRUEBA</span>{% endif %}
+    {% if nota_credito %}<span class="etiqueta-anulada">ANULADA</span>{% endif %}</h1>
   <div class="acciones">
     <a class="boton" href="{{ url_for('facturas.pdf', id=f.id) }}" target="_blank">PDF (original, duplicado y triplicado)</a>
     <a class="boton secundario" href="{{ url_for('facturas.pdf', id=f.id, copias=1) }}" target="_blank">PDF solo original</a>
     <a class="boton secundario" href="{{ url_for('facturas.nueva') }}">+ Nueva factura</a>
   </div>
 </div>
+
+{% if nota_credito %}
+<div class="aviso aviso-info">Esta factura está anulada por la
+  <a href="{{ url_for('facturas.ver', id=nota_credito.id) }}">{{ nota_credito|nombre_cbte }} N° {{ nota_credito|nro_cbte }}</a>
+  del {{ nota_credito.fecha|fecha }}.</div>
+{% elif es_nc and asociada %}
+<div class="aviso aviso-info">Esta nota de crédito anula la
+  <a href="{{ url_for('facturas.ver', id=asociada.id) }}">{{ asociada|nombre_cbte }} N° {{ asociada|nro_cbte }}</a>
+  del {{ asociada.fecha|fecha }}.</div>
+{% endif %}
 
 <div class="formulario ancho">
   <div class="fila datos">
@@ -28,7 +39,7 @@
       {% endif %}
       <strong>Condición de venta:</strong> {{ f.condicion_venta }}<br>
       {% if f.remito_numero %}<strong>Remito asociado:</strong> R {{ "%05d"|format(f.remito_pto_vta) }}-{{ "%08d"|format(f.remito_numero) }}<br>{% endif %}
-      <strong>CAE:</strong> {{ f.cae or 'sin CAE (factura de prueba)' }}
+      <strong>CAE:</strong> {{ f.cae or 'sin CAE (comprobante de prueba)' }}
     </div>
   </div>
 
@@ -52,10 +63,13 @@
 
 <div class="acciones pie">
   <a href="{{ url_for('facturas.lista') }}">← Volver a facturas</a>
-  {% if f.prueba %}
+  {% if not es_nc and not nota_credito %}
+  <a class="boton secundario" href="{{ url_for('facturas.nota_credito', id=f.id) }}">Hacer nota de crédito (anular)</a>
+  {% endif %}
+  {% if f.prueba and not nota_credito %}
   <form method="post" action="{{ url_for('facturas.eliminar', id=f.id) }}"
-        onsubmit="return confirm('¿Eliminar esta factura de prueba? No se puede deshacer.');">
-    <button type="submit" class="boton peligro">Eliminar factura de prueba</button>
+        onsubmit="return confirm('¿Eliminar este comprobante de prueba? No se puede deshacer.');">
+    <button type="submit" class="boton peligro">Eliminar {{ 'nota de crédito' if es_nc else 'factura' }} de prueba</button>
   </form>
   {% endif %}
 </div>

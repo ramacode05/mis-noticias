@@ -23,6 +23,8 @@ bp = Blueprint("facturas", __name__, url_prefix="/facturas")
 
 # Códigos de ARCA.
 CBTE_TIPO = {"A": 1, "B": 6}
+NC_TIPO = {"A": 3, "B": 8}  # notas de crédito
+NOMBRE_CBTE = {1: "Factura A", 6: "Factura B", 3: "Nota de Crédito A", 8: "Nota de Crédito B"}
 CONCEPTOS = {1: "Productos", 2: "Servicios", 3: "Productos y Servicios"}
 CONDICION_VENTA = "Cuenta Corriente"  # la empresa siempre vende en cuenta corriente
 # Puntos de venta habilitados en ARCA (se eligen en el paso 1, como en RCEL).
@@ -47,6 +49,16 @@ def leer_fecha(texto):
         return date.fromisoformat(texto or "")
     except ValueError:
         return None
+
+
+def es_nota_credito(f):
+    return f["cbte_tipo"] in NC_TIPO.values()
+
+
+def nota_credito_de(factura_id):
+    """La nota de crédito que anula esta factura (o None)."""
+    return get_db().execute("SELECT * FROM facturas WHERE asociado_id = ? ORDER BY id LIMIT 1",
+                            (factura_id,)).fetchone()
 
 
 def ultima_factura(punto_venta, cbte_tipo, prueba=1):
@@ -301,8 +313,12 @@ def lista():
     sql += " ORDER BY fecha DESC, id DESC"
 
     facturas = get_db().execute(sql, params).fetchall()
-    return render_template("facturas/lista.html", facturas=facturas, q=q, mes=mes,
-                           total=sum(f["total"] for f in facturas))
+    # Facturas anuladas por una nota de crédito (para marcarlas en la lista).
+    anuladas = {fila["asociado_id"]: fila for fila in get_db().execute(
+        "SELECT asociado_id, punto_venta, numero, letra FROM facturas WHERE asociado_id IS NOT NULL")}
+    total = sum(-f["total"] if es_nota_credito(f) else f["total"] for f in facturas)
+    return render_template("facturas/lista.html", facturas=facturas, q=q, mes=mes, total=total,
+                           anuladas=anuladas, es_nota_credito=es_nota_credito)
 
 
 @bp.route("/nueva", methods=("GET", "POST"))
@@ -383,7 +399,11 @@ def ver(id):
         abort(404)
     renglones = db.execute("SELECT * FROM factura_renglones WHERE factura_id = ? ORDER BY orden",
                            (id,)).fetchall()
-    return render_template("facturas/ver.html", f=factura, renglones=renglones, CONCEPTOS=CONCEPTOS)
+    asociada = (db.execute("SELECT * FROM facturas WHERE id = ?", (factura["asociado_id"],)).fetchone()
+                if factura["asociado_id"] else None)
+    return render_template("facturas/ver.html", f=factura, renglones=renglones, CONCEPTOS=CONCEPTOS,
+                           es_nc=es_nota_credito(factura), asociada=asociada,
+                           nota_credito=None if es_nota_credito(factura) else nota_credito_de(id))
 
 
 @bp.route("/<int:id>/pdf")
@@ -399,7 +419,9 @@ def pdf(id):
                            (id,)).fetchall()
     copias = COPIAS[:1] if request.args.get("copias") == "1" else COPIAS
     archivo = nombre_archivo(factura)
-    return Response(generar_pdf(factura, renglones, copias), mimetype="application/pdf",
+    asociada = (db.execute("SELECT * FROM facturas WHERE id = ?", (factura["asociado_id"],)).fetchone()
+                if factura["asociado_id"] else None)
+    return Response(generar_pdf(factura, renglones, copias, asociada), mimetype="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{archivo}"'})
 
 
@@ -411,10 +433,107 @@ def eliminar(id):
     if factura is None:
         abort(404)
     if not factura["prueba"]:
-        flash("Las facturas reales no se pueden eliminar: se anulan con una nota de crédito.", "error")
+        flash("Los comprobantes reales no se pueden eliminar: una factura se anula con una nota de "
+              "crédito.", "error")
+        return redirect(url_for("facturas.ver", id=id))
+    if nota_credito_de(id):
+        flash("Esta factura tiene una nota de crédito: eliminá primero la nota de crédito.", "error")
         return redirect(url_for("facturas.ver", id=id))
     db.execute("DELETE FROM factura_renglones WHERE factura_id = ?", (id,))
     db.execute("DELETE FROM facturas WHERE id = ?", (id,))
     db.commit()
-    flash(f"Factura de prueba {factura['letra']} N° {factura['numero']} eliminada.", "ok")
+    flash(f"{NOMBRE_CBTE[factura['cbte_tipo']]} de prueba N° {factura['numero']} eliminada.", "ok")
     return redirect(url_for("facturas.lista"))
+
+
+# --- Notas de crédito -------------------------------------------------------------------
+
+def validar_nota_credito(factura, fecha_texto):
+    """Devuelve un mensaje de error, o None si se puede hacer la nota de crédito."""
+    if es_nota_credito(factura):
+        return "Una nota de crédito no se puede anular con otra nota de crédito."
+    anterior = nota_credito_de(factura["id"])
+    if anterior:
+        return (f"Esta factura ya tiene la Nota de Crédito {anterior['letra']} "
+                f"N° {anterior['punto_venta']:05d}-{anterior['numero']:08d}.")
+    fecha = leer_fecha(fecha_texto)
+    margen = DIAS_MARGEN.get(factura["concepto"], 5)
+    if fecha is None:
+        return "Escribí la fecha de la nota de crédito."
+    if abs((fecha - date.today()).days) > margen:
+        return f"ARCA solo acepta fechas hasta {margen} días antes o después de hoy."
+    if fecha_texto < factura["fecha"]:
+        return "La nota de crédito no puede tener fecha anterior a la factura."
+    ultima = ultima_factura(factura["punto_venta"], NC_TIPO[factura["letra"]], factura["prueba"])
+    if ultima and fecha_texto < ultima["fecha"]:
+        return (f"La fecha no puede ser anterior a la última Nota de Crédito {factura['letra']} "
+                f"({date.fromisoformat(ultima['fecha']):%d/%m/%Y}).")
+    return None
+
+
+def guardar_nota_credito(factura, fecha, observaciones, token):
+    """Copia la factura como nota de crédito por el total. Devuelve el id de la nota."""
+    db = get_db()
+    cbte_tipo = NC_TIPO[factura["letra"]]
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        repetida = db.execute("SELECT id FROM facturas WHERE token = ?", (token,)).fetchone()
+        if repetida:
+            db.rollback()
+            return repetida["id"]
+        ultima = ultima_factura(factura["punto_venta"], cbte_tipo, factura["prueba"])
+        numero = (ultima["numero"] if ultima else 0) + 1
+        cur = db.execute(
+            """INSERT INTO facturas (cbte_tipo, letra, punto_venta, numero, prueba, fecha, concepto,
+                   serv_desde, serv_hasta, vto_pago, condicion_venta, cliente_id,
+                   cliente_razon_social, cliente_condicion_iva, cliente_tipo_doc, cliente_nro_doc,
+                   cliente_domicilio, neto, iva, total, observaciones, token, asociado_id)
+               SELECT ?, letra, punto_venta, ?, prueba, ?, concepto,
+                   serv_desde, serv_hasta, CASE WHEN vto_pago IS NULL THEN NULL ELSE ? END,
+                   condicion_venta, cliente_id, cliente_razon_social, cliente_condicion_iva,
+                   cliente_tipo_doc, cliente_nro_doc, cliente_domicilio, neto, iva, total, ?, ?, id
+               FROM facturas WHERE id = ?""",
+            (cbte_tipo, numero, fecha, fecha, observaciones, token, factura["id"]),
+        )
+        nota_id = cur.lastrowid
+        db.execute(
+            """INSERT INTO factura_renglones (factura_id, orden, descripcion, cantidad, precio_unitario,
+                   subtotal)
+               SELECT ?, orden, descripcion, cantidad, precio_unitario, subtotal
+               FROM factura_renglones WHERE factura_id = ?""", (nota_id, factura["id"]))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return nota_id
+
+
+@bp.route("/<int:id>/nota-credito", methods=("GET", "POST"))
+def nota_credito(id):
+    """Nota de crédito por el total de la factura (para anularla)."""
+    db = get_db()
+    factura = db.execute("SELECT * FROM facturas WHERE id = ?", (id,)).fetchone()
+    if factura is None:
+        abort(404)
+    datos = {"fecha": date.today().isoformat(), "observaciones": "", "token": uuid.uuid4().hex}
+    error = None
+    if request.method == "POST":
+        datos = {"fecha": request.form.get("fecha", ""),
+                 "observaciones": (request.form.get("observaciones") or "").strip()[:1000],
+                 "token": request.form.get("token") or uuid.uuid4().hex}
+        repetida = db.execute("SELECT id FROM facturas WHERE token = ?", (datos["token"],)).fetchone()
+        if repetida:  # se tocó "Confirmar" dos veces
+            return redirect(url_for("facturas.ver", id=repetida["id"]))
+        error = validar_nota_credito(factura, datos["fecha"])
+        if not error:
+            nota_id = guardar_nota_credito(factura, datos["fecha"], datos["observaciones"], datos["token"])
+            nota = db.execute("SELECT * FROM facturas WHERE id = ?", (nota_id,)).fetchone()
+            flash(f"Nota de Crédito {nota['letra']} N° {nota['numero']} generada"
+                  f"{' (de prueba)' if nota['prueba'] else ''}. La factura quedó anulada.", "ok")
+            return redirect(url_for("facturas.ver", id=nota_id))
+    elif not es_nota_credito(factura) and nota_credito_de(id):
+        error = validar_nota_credito(factura, datos["fecha"])
+    renglones = db.execute("SELECT * FROM factura_renglones WHERE factura_id = ? ORDER BY orden",
+                           (id,)).fetchall()
+    return render_template("facturas/nota_credito.html", f=factura, renglones=renglones, datos=datos,
+                           error=error, CONCEPTOS=CONCEPTOS)

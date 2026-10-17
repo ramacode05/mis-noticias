@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block titulo %}Nota de crédito para {{ f|nombre_cbte }} {{ f|nro_cbte }}{% endblock %}
+{% block contenido %}
+<div class="rcel">
+  <div class="rcel-titulo">
+    <div>GENERACIÓN DE COMPROBANTES - NOTA DE CRÉDITO {{ f.letra }}
+      {% if f.prueba %}<span class="etiqueta-prueba">PRUEBA</span>{% endif %}</div>
+    <div class="rcel-subtitulo">ANULAR LA {{ (f|nombre_cbte)|upper }} N° {{ f|nro_cbte }}</div>
+  </div>
+
+  {% if error %}<div class="aviso error" style="margin-top:1rem">{{ error }}</div>{% endif %}
+
+  <form method="post" class="nc-form" id="form-nc">
+    <input type="hidden" name="token" value="{{ datos.token }}">
+    <p class="nota">Se genera una nota de crédito <strong>por el total</strong> de la factura, con los
+       mismos renglones y el mismo cliente. Queda asociada a la factura, y la factura queda anulada.</p>
+
+    <div class="rcel-campos">
+      <label>Punto de venta</label><div>{{ "%05d"|format(f.punto_venta) }}</div>
+      <label for="fecha">Fecha de la nota de crédito</label>
+      <div><input type="date" name="fecha" id="fecha" value="{{ datos.fecha }}"></div>
+      <label>Cliente</label><div>{{ f.cliente_razon_social }}</div>
+      <label>Factura que se anula</label>
+      <div>{{ f|nombre_cbte }} N° {{ f|nro_cbte }} del {{ f.fecha|fecha }}{% if f.remito_numero %} (remito {{ f.remito_numero }}){% endif %}</div>
+    </div>
+
+    <table class="rcel-renglones">
+      <thead><tr><th>Producto/Servicio</th><th class="num">Cant.</th><th class="num">Prec. Unitario</th><th class="num">Subtotal</th></tr></thead>
+      <tbody>
+      {% for r in renglones %}
+        <tr><td>{{ r.descripcion }}</td><td class="num">{{ r.cantidad|cantidad }}</td><td class="num">{{ r.precio_unitario|pesos }}</td><td class="num">{{ r.subtotal|pesos }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <table class="totales">
+      <tr><td>Importe Neto Gravado:</td><td class="num">{{ f.neto|pesos }}</td></tr>
+      <tr><td>IVA 21%:</td><td class="num">{{ f.iva|pesos }}</td></tr>
+      <tr class="total"><td>Importe Total:</td><td class="num">{{ f.total|pesos }}</td></tr>
+    </table>
+
+    <label class="observaciones-nc">Motivo / observaciones <small>(uso interno, no sale en el comprobante)</small>
+      <textarea name="observaciones" rows="2" maxlength="1000" placeholder="Ej: error en el precio, se vuelve a facturar">{{ datos.observaciones }}</textarea>
+    </label>
+
+    <div class="rcel-botones">
+      <a class="rcel-boton" href="{{ url_for('facturas.ver', id=f.id) }}">&lt; Volver</a>
+      <button type="submit" class="rcel-boton principal" id="boton-confirmar">Confirmar Nota de Crédito</button>
+    </div>
+  </form>
+</div>
+<script>
+  // Evita generar dos notas de crédito con un doble clic.
+  document.getElementById('form-nc').addEventListener('submit', function (e) {
+    if (this.dataset.enviado) { e.preventDefault(); return; }
+    this.dataset.enviado = '1';
+    var b = document.getElementById('boton-confirmar');
+    setTimeout(function () { b.disabled = true; b.textContent = 'Generando…'; }, 0);
+  });
+</script>
+{% endblock %}

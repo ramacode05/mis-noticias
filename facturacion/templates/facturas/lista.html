@@ -22,21 +22,22 @@
   {% for f in facturas %}
     <tr>
       <td>{{ f.fecha|fecha }}</td>
-      <td><span class="letra">{{ f.letra }}</span> {{ f|nro_cbte }}{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}</td>
+      <td>{% if es_nota_credito(f) %}<span class="tipo-nc" title="Nota de crédito">NC</span>{% endif %}<span class="letra">{{ f.letra }}</span> {{ f|nro_cbte }}{% if f.prueba %} <span class="etiqueta-prueba">PRUEBA</span>{% endif %}{% if f.id in anuladas %} <span class="etiqueta-anulada" title="Anulada por nota de crédito">ANULADA</span>{% endif %}</td>
       <td>{{ f.cliente_razon_social }}</td>
       <td>{{ f.remito_numero or '' }}</td>
-      <td class="num">{{ f.neto|pesos }}</td>
-      <td class="num">{{ f.iva|pesos }}</td>
-      <td class="num"><strong>{{ f.total|pesos }}</strong></td>
+      {% set signo = -1 if es_nota_credito(f) else 1 %}
+      <td class="num">{{ (signo * f.neto)|pesos }}</td>
+      <td class="num">{{ (signo * f.iva)|pesos }}</td>
+      <td class="num"><strong>{{ (signo * f.total)|pesos }}</strong></td>
       <td class="accion"><a href="{{ url_for('facturas.ver', id=f.id) }}">Ver</a> · <a href="{{ url_for('facturas.pdf', id=f.id) }}" target="_blank">PDF</a></td>
     </tr>
   {% endfor %}
   </tbody>
   <tfoot>
-    <tr><td colspan="6">{{ facturas|length }} factura(s)</td><td class="num"><strong>{{ total|pesos }}</strong></td><td></td></tr>
+    <tr><td colspan="6">{{ facturas|length }} comprobante(s) — total (facturas menos notas de crédito)</td><td class="num"><strong>{{ total|pesos }}</strong></td><td></td></tr>
   </tfoot>
 </table>
 {% else %}
-<p class="vacio">{% if q or mes %}No se encontraron facturas con esos filtros.{% else %}Todavía no hay facturas.{% endif %}</p>
+<p class="vacio">{% if q or mes %}No se encontraron comprobantes con esos filtros.{% else %}Todavía no hay facturas.{% endif %}</p>
 {% endif %}
 {% endblock %}

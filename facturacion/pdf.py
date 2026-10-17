@@ -7,6 +7,8 @@ una hoja, la copia sigue en otra ("Pág. 1/2"), y los totales van en la última.
 Factura A: precios sin IVA, columnas de alícuota y subtotal con IVA, IVA discriminado.
 Factura B: precios con IVA incluido, sin columnas de IVA, y el recuadro del "Régimen de
 Transparencia Fiscal al Consumidor (Ley 27.743)" con el IVA contenido.
+Nota de crédito: mismo diseño, con el título "NOTA DE CREDITO", su código (03 / 08) y el
+comprobante asociado (la factura que anula).
 
 No lleva el logo de ARCA ni su leyenda: eso lo agrega ARCA solo a los PDF de su web.
 Las facturas de prueba llevan la marca "PRUEBA - SIN VALIDEZ FISCAL" y no tienen QR.
@@ -32,6 +34,8 @@ MEDIO = ANCHO / 2
 GRIS = Color(0.82, 0.82, 0.82)
 COPIAS = ("ORIGINAL", "DUPLICADO", "TRIPLICADO")
 TIPO_DOC_ARCA = {"CUIT": 80, "DNI": 96, "SIN": 99}
+TITULO = {1: "FACTURA", 6: "FACTURA", 3: "NOTA DE CREDITO", 8: "NOTA DE CREDITO"}
+NOMBRE_CORTO = {1: "Factura A", 6: "Factura B", 3: "Nota de Crédito A", 8: "Nota de Crédito B"}
 # Cómo escribe ARCA cada condición frente al IVA.
 CONDICION_ARCA = {"RI": "IVA Responsable Inscripto", "MT": "Responsable Monotributo",
                   "EX": "IVA Sujeto Exento", "CF": "Consumidor Final"}
@@ -147,7 +151,7 @@ def marca_de_agua(c):
     c.restoreState()
 
 
-def encabezado(c, f, copia, columnas):
+def encabezado(c, f, copia, columnas, asociada=None):
     """Recuadros de arriba: copia, emisor, letra, datos del comprobante, período y receptor."""
     c.setLineWidth(0.8)
     # Copia
@@ -169,7 +173,7 @@ def encabezado(c, f, copia, columnas):
                    negrita_valor=True, separacion=7)
 
     x = MEDIO + 44
-    texto(c, x - 2, 768, "FACTURA", 19, negrita=True)
+    texto(c, x - 2, 768, TITULO.get(f["cbte_tipo"], "FACTURA"), 19, negrita=True)
     texto(c, x, 749, "Punto de Venta:", 9, negrita=True)
     texto(c, 417, 749, f"{f['punto_venta']:05d}", 10.5, negrita=True)
     texto(c, 461, 749, "Comp. Nro:", 9, negrita=True)
@@ -187,7 +191,7 @@ def encabezado(c, f, copia, columnas):
         texto(c, IZQ + 7, 664, "Período Facturado Desde:", 10, negrita=True)
         texto(c, 159, 664, fecha(f["serv_desde"]), 10)
         texto(c, 232, 664, "Hasta:", 10, negrita=True)
-        texto(c, 262, 664, fecha(f["serv_hasta"]), 10)
+        texto(c, 265, 664, fecha(f["serv_hasta"]), 10)
         texto(c, 362.5, 664, "Fecha de Vto. para el pago:", 10, negrita=True)
         texto(c, 495, 664, fecha(f["vto_pago"]), 10)
 
@@ -207,6 +211,11 @@ def encabezado(c, f, copia, columnas):
     if f["remito_numero"]:
         etiqueta_valor(c, 284.5, 608.5, "Remito:", f"{f['remito_pto_vta']:05d}-{f['remito_numero']:08d}",
                        7.5, tam_valor=8, separacion=2)
+    if asociada is not None:  # nota de crédito: la factura que anula
+        etiqueta_valor(c, 271.5, 608.5, "Comprobante Asociado:",
+                       f"{NOMBRE_CORTO.get(asociada['cbte_tipo'], '')} "
+                       f"{asociada['punto_venta']:05d}-{asociada['numero']:08d} del {fecha(asociada['fecha'])}",
+                       7.5, tam_valor=8)
 
     # Títulos del detalle
     c.setFillColor(GRIS)
@@ -328,11 +337,14 @@ def pie(c, f, pagina, total_paginas, ultima):
         texto(c, 482, 129, "Comprobante de prueba, sin validez fiscal", 8.5, cursiva=True, alinear="der")
 
 
-def generar_pdf(f, renglones, copias=COPIAS):
-    """Devuelve el PDF (bytes) de la factura f con sus renglones."""
+def generar_pdf(f, renglones, copias=COPIAS, asociada=None):
+    """Devuelve el PDF (bytes) del comprobante f con sus renglones.
+
+    asociada: en una nota de crédito, la factura que anula (se imprime en el recuadro del cliente).
+    """
     salida = io.BytesIO()
     c = Canvas(salida, pagesize=A4)
-    c.setTitle(f"Factura {f['letra']} {f['punto_venta']:05d}-{f['numero']:08d}")
+    c.setTitle(f"{NOMBRE_CORTO.get(f['cbte_tipo'], 'Comprobante')} {f['punto_venta']:05d}-{f['numero']:08d}")
     c.setAuthor(EMISOR["nombre_fantasia"])
     columnas = COLUMNAS_A if f["letra"] == "A" else COLUMNAS_B
     paginas = paginar(armar_filas(f, renglones, columnas))
@@ -340,7 +352,7 @@ def generar_pdf(f, renglones, copias=COPIAS):
         for n, filas in enumerate(paginas, start=1):
             if f["prueba"]:
                 marca_de_agua(c)
-            encabezado(c, f, copia, columnas)
+            encabezado(c, f, copia, columnas, asociada)
             detalle(c, filas, columnas)
             ultima = n == len(paginas)
             if ultima:

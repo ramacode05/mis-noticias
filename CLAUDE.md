@@ -9,7 +9,8 @@
 - Volumen: 25 a 40 facturas por mes.
 - El detalle de cada factura es **texto libre**, más algunos **conceptos fijos** guardados como plantillas.
 - Los cobros son **siempre por el total** de la factura (no hay pagos parciales).
-- Lo usan **2 personas en una PC con Windows**, desde el navegador (app web local).
+- Lo usan **2 personas** con Windows, desde el navegador (app web local), en **dos PCs (casa y
+  departamento)** que comparten la carpeta del sistema por **Google Drive** (nunca a la vez).
 
 ## Usuario
 
@@ -22,6 +23,14 @@
 
 - Python 3 + Flask + SQLite (módulo `sqlite3` de Python, sin ORM).
 - App web local: corre en la PC y se abre en `http://127.0.0.1:5000`.
+- **Google Drive**: la carpeta del sistema (programa + `instance/` con la base) está en Drive y la
+  usan dos PCs. El entorno de Python NO va en Drive: `instalar.bat` lo crea en cada PC en
+  `%LOCALAPPDATA%\FacturacionLouletano\venv`. `candado.py` impide abrirlo en las dos PCs a la vez
+  (archivo `instance/en_uso.json` con latido cada minuto); el botón "Cerrar sistema" lo libera.
+  Al abrir se guarda una copia de la base en `%LOCALAPPDATA%\FacturacionLouletano\copias` (30).
+  No usar modo WAL de SQLite (sus archivos extra no se sincronizan bien con Drive).
+  Alternativa evaluada: servidor pago en internet (uso simultáneo y desde el celular); se
+  descartó por ahora. Los datos se pueden mudar después sin perder nada.
 - Git para versionar.
 - Dependencias mínimas: agregar una librería solo si hace falta y con el OK del usuario.
   Hoy: Flask y ReportLab (PDF y QR), fijadas en requirements.txt. `iniciar.bat` instala solo lo
@@ -41,12 +50,14 @@ facturacion/            Código de la aplicación
   importes.py           Lectura de números en formato argentino, cálculos y formato $
   emisor.py             Datos de la empresa que emite (razón social, CUIT, IIBB, inicio de actividades)
   pdf.py                PDF de la factura con el diseño de ARCA (ReportLab) y QR de ARCA
+  candado.py            Aviso de "sistema en uso" entre las dos PCs (Google Drive)
+  copias.py             Copia de seguridad de la base en cada PC al abrir
   templates/            Páginas HTML
   static/               Estilos (CSS) y factura.js (buscador de clientes y cálculo en vivo)
 instance/               Base de datos real (NO se sube a Git)
 tests/                  Pruebas automáticas
 iniciar.py              Arranca el sistema
-instalar.bat            Instalación en Windows (una sola vez)
+instalar.bat            Instalación en Windows (una vez por PC; el entorno queda fuera de Drive)
 iniciar.bat             Abre el sistema en Windows
 ```
 
@@ -129,8 +140,8 @@ iniciar.bat             Abre el sistema en Windows
    Movimientos (facturas, NC, cobros) con saldo; listado de saldos de todos los clientes.
 8. **Resumen mensual y Excel**
    Ventas del mes (neto, IVA, total por tipo), cobros del mes, exportable a Excel.
-9. **Backup automático**
-   Copia diaria de la base de datos a una carpeta (con rotación), y botón de backup manual.
+9. **Backup automático** (en parte hecho: copia local en cada PC al abrir, conserva 30)
+   Falta: botón de backup manual y, si hace falta, copias en otra ubicación.
 10. **Conexión con ARCA (homologación y luego producción)**
     Certificado digital, WSAA (autenticación) y WSFEv1 (obtener CAE).
     Primero en el ambiente de prueba de ARCA; después en producción.

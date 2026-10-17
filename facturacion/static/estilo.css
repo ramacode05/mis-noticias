@@ -127,3 +127,6 @@ section.resumen { display: block; margin-top: 1rem; }
 }
 td.celda-descripcion { position: relative; }
 .resultados.sugerencias { top: 100%; right: auto; min-width: 100%; width: max-content; max-width: 40rem; }
+.cerrar-sistema { margin-left: auto; }
+.cerrar-sistema button { background: transparent; border: 1px solid #9fb3cc; color: #fff; padding: .3rem .8rem; font-size: 14px; }
+.cerrar-sistema button:hover { background: #2c4d78; }

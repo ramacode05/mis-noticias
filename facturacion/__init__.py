@@ -1,8 +1,9 @@
 """Sistema de facturación y cuentas corrientes."""
 import os
+import threading
 from datetime import date
 
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, render_template, url_for
 
 
 def create_app(config=None):
@@ -33,5 +34,15 @@ def create_app(config=None):
     @app.route("/")
     def inicio():
         return redirect(url_for("facturas.lista"))
+
+    @app.route("/cerrar", methods=("POST",))
+    def cerrar():
+        """Cierra el sistema y avisa (por Google Drive) que la otra PC ya lo puede abrir."""
+        uso = app.config.get("CANDADO")
+        if uso is not None:
+            uso.cerrar()
+            # Apaga el programa un instante después, para que llegue a mostrar la página.
+            threading.Timer(1.0, lambda: os._exit(0)).start()
+        return render_template("cerrado.html")
 
     return app

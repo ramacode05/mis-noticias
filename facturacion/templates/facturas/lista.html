@@ -28,7 +28,7 @@
       <td class="num">{{ f.neto|pesos }}</td>
       <td class="num">{{ f.iva|pesos }}</td>
       <td class="num"><strong>{{ f.total|pesos }}</strong></td>
-      <td class="accion"><a href="{{ url_for('facturas.ver', id=f.id) }}">Ver</a></td>
+      <td class="accion"><a href="{{ url_for('facturas.ver', id=f.id) }}">Ver</a> · <a href="{{ url_for('facturas.pdf', id=f.id) }}" target="_blank">PDF</a></td>
     </tr>
   {% endfor %}
   </tbody>

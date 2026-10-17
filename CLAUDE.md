@@ -24,6 +24,8 @@
 - App web local: corre en la PC y se abre en `http://127.0.0.1:5000`.
 - Git para versionar.
 - Dependencias mínimas: agregar una librería solo si hace falta y con el OK del usuario.
+  Hoy: Flask y ReportLab (PDF y QR), fijadas en requirements.txt. `iniciar.bat` instala solo lo
+  que falte al arrancar, así una versión nueva con otra librería no obliga a correr instalar.bat.
 
 ## Estructura del proyecto
 
@@ -37,6 +39,8 @@ facturacion/            Código de la aplicación
   conceptos.py          Pantallas de conceptos fijos (plantillas de detalle)
   facturas.py           Facturas A/B: alta en 4 pasos como ARCA, lista, ver, eliminar (solo de prueba)
   importes.py           Lectura de números en formato argentino, cálculos y formato $
+  emisor.py             Datos de la empresa que emite (razón social, CUIT, IIBB, inicio de actividades)
+  pdf.py                PDF de la factura con el diseño de ARCA (ReportLab) y QR de ARCA
   templates/            Páginas HTML
   static/               Estilos (CSS) y factura.js (buscador de clientes y cálculo en vivo)
 instance/               Base de datos real (NO se sube a Git)
@@ -107,9 +111,11 @@ iniciar.bat             Abre el sistema en Windows
    Alta de factura A/B: cliente, fecha, renglones (cantidad × precio unitario sin IVA) de texto
    libre o desde concepto fijo, neto + IVA 21% + total. Numeración por punto de venta y tipo.
    Marcadas como "PRUEBA" (`prueba = 1`); solo esas se pueden eliminar.
-4. **PDF de la factura**
-   PDF con el formato fiscal (datos del emisor, receptor, detalle, totales) y QR de ARCA
-   (con datos ficticios hasta tener CAE real).
+4. **PDF de la factura** ✅
+   Copia del diseño del PDF de RCEL: ORIGINAL, DUPLICADO y TRIPLICADO (o solo original con
+   ?copias=1), paginado si hay muchos renglones. Nombre de archivo como ARCA
+   (CUIT_TIPO_PTOVTA_NUMERO.pdf). Las de prueba llevan marca de agua "PRUEBA - SIN VALIDEZ FISCAL"
+   y un recuadro en lugar del QR; el QR (RG 4892) se dibuja solo cuando hay CAE (etapa 10).
 5. **Notas de crédito**
    NC A/B asociadas a una factura (total, que es lo habitual cuando se anula).
 6. **Cobros**

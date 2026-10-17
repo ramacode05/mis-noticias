@@ -12,7 +12,8 @@ import sqlite3
 import uuid
 from datetime import date
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import (Blueprint, Response, abort, flash, redirect, render_template, request,
+                   url_for)
 
 from .db import get_db
 from .importes import a_centavos, a_centesimos, calcular_totales, subtotal
@@ -383,6 +384,23 @@ def ver(id):
     renglones = db.execute("SELECT * FROM factura_renglones WHERE factura_id = ? ORDER BY orden",
                            (id,)).fetchall()
     return render_template("facturas/ver.html", f=factura, renglones=renglones, CONCEPTOS=CONCEPTOS)
+
+
+@bp.route("/<int:id>/pdf")
+def pdf(id):
+    """PDF como el de ARCA. ?copias=1 da solo el ORIGINAL (para mandar por mail)."""
+    from .pdf import COPIAS, generar_pdf, nombre_archivo  # se carga solo al pedir un PDF
+
+    db = get_db()
+    factura = db.execute("SELECT * FROM facturas WHERE id = ?", (id,)).fetchone()
+    if factura is None:
+        abort(404)
+    renglones = db.execute("SELECT * FROM factura_renglones WHERE factura_id = ? ORDER BY orden",
+                           (id,)).fetchall()
+    copias = COPIAS[:1] if request.args.get("copias") == "1" else COPIAS
+    archivo = nombre_archivo(factura)
+    return Response(generar_pdf(factura, renglones, copias), mimetype="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{archivo}"'})
 
 
 @bp.route("/<int:id>/eliminar", methods=("POST",))

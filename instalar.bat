@@ -26,7 +26,7 @@ if not exist .venv\Scripts\python.exe (
     if exist .venv rmdir /s /q .venv
     %PYTHON% -m venv .venv
 )
-echo Instalando Flask...
+echo Instalando las herramientas: Flask y ReportLab...
 .venv\Scripts\python -m pip install -r requirements.txt
 if errorlevel 1 (
     echo.

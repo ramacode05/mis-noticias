@@ -72,7 +72,8 @@ iniciar.bat             Abre el sistema en Windows
 - Condición de venta: **siempre Cuenta Corriente** (no se elige).
 - **Remito R** asociado: opcional, uno por factura, punto de venta 00001 por defecto.
   Avisa si el remito ya está en otra factura. En WSFEv1 irá como comprobante asociado (tipo 91).
-- Factura B: casi nunca; el usuario la hace en ARCA. El sistema la soporta igual (precio sin IVA).
+- Factura B: casi nunca; el usuario la hace directo en ARCA y pidió no dedicarle tiempo. El sistema
+  la soporta igual (precio sin IVA; el PDF de B muestra precios con IVA y el recuadro Ley 27.743).
 - La patente va como texto en el primer renglón: "Int. AB123CD" (renglón con precio 0 permitido).
 - Códigos ARCA: Factura A = 1, Factura B = 6 (NC A = 3, NC B = 8).
 - Fecha de emisión: ±5 días (productos) o ±10 días (servicios) de hoy, y no anterior a la última del mismo tipo.
@@ -116,7 +117,9 @@ iniciar.bat             Abre el sistema en Windows
    ?copias=1), paginado si hay muchos renglones. Nombre de archivo como ARCA
    (CUIT_TIPO_PTOVTA_NUMERO.pdf). Las de prueba llevan marca de agua "PRUEBA - SIN VALIDEZ FISCAL"
    y un recuadro en lugar del QR; el QR (RG 4892) se dibuja solo cuando hay CAE (etapa 10).
-   Importes como ARCA (150000,00, sin puntos de miles). NO lleva el logo de ARCA ni su leyenda
+   Posiciones y tamaños medidos sobre un PDF real de RCEL (se superpusieron para comparar).
+   Importes como ARCA (150000,00, sin puntos de miles); condiciones frente al IVA con los
+   textos de ARCA; domicilio y localidad separados por " - ". NO lleva el logo de ARCA ni su leyenda
    "Esta Agencia no se responsabiliza...": eso lo agrega ARCA solo a los PDF que genera su web.
 5. **Notas de crédito**
    NC A/B asociadas a una factura (total, que es lo habitual cuando se anula).

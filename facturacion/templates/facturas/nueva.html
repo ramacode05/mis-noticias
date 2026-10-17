@@ -106,7 +106,7 @@
         <label>Condición frente al IVA</label><div><input id="c-condicion" readonly value="{{ CONDICIONES_IVA[cliente.condicion_iva] if cliente else '' }}"></div>
         <label>CUIT / Documento</label><div><input id="c-documento" readonly value="{% if cliente and cliente.tipo_doc != 'SIN' %}{{ cliente.tipo_doc }} {{ formatear_doc(cliente) }}{% endif %}"></div>
         <label>Razón Social</label><div><input id="c-razon" readonly value="{{ cliente.razon_social if cliente else '' }}"></div>
-        <label>Domicilio Comercial</label><div><input id="c-domicilio" readonly value="{{ [cliente.domicilio, cliente.localidad]|select|join(', ') if cliente else '' }}"></div>
+        <label>Domicilio Comercial</label><div><input id="c-domicilio" readonly value="{{ [cliente.domicilio, cliente.localidad]|select|join(' - ') if cliente else '' }}"></div>
         <label>Email</label><div><input id="c-email" readonly value="{{ cliente.email if cliente else '' }}"></div>
         <label>Comprobante</label><div><strong id="c-letra">{{ 'Factura ' ~ letra if letra else '—' }}</strong></div>
       </div>
@@ -229,7 +229,7 @@
           <dt>Razón social</dt><dd>{{ cliente.razon_social }}</dd>
           <dt>Condición frente al IVA</dt><dd>{{ CONDICIONES_IVA[cliente.condicion_iva] }}</dd>
           {% if cliente.tipo_doc != 'SIN' %}<dt>{{ cliente.tipo_doc }}</dt><dd>{{ formatear_doc(cliente) }}</dd>{% endif %}
-          <dt>Domicilio</dt><dd>{{ [cliente.domicilio, cliente.localidad]|select|join(', ') or '—' }}</dd>
+          <dt>Domicilio</dt><dd>{{ [cliente.domicilio, cliente.localidad]|select|join(' - ') or '—' }}</dd>
           <dt>Condición de venta</dt><dd>{{ CONDICION_VENTA }}</dd>
           <dt>Remito asociado</dt><dd>{% if datos.remito_numero %}Remito R {{ "%05d"|format(datos.remito_pto_vta|int) }}-{{ "%08d"|format(datos.remito_numero|int) }}{% else %}—{% endif %}</dd>
         </dl>

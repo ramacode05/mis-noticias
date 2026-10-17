@@ -212,7 +212,7 @@ def guardar_factura(datos, cliente, renglones):
     letra = letra_factura(cliente["condicion_iva"])
     cbte_tipo = CBTE_TIPO[letra]
     totales = calcular_totales([(r["cantidad"], r["precio_unitario"]) for r in renglones])
-    domicilio = ", ".join(x for x in (cliente["domicilio"], cliente["localidad"]) if x)
+    domicilio = " - ".join(x for x in (cliente["domicilio"], cliente["localidad"]) if x)
     concepto = int(datos["concepto"])
     servicio = concepto in (2, 3)
 
@@ -360,7 +360,7 @@ def nueva():
         "condicion": CONDICIONES_IVA[c["condicion_iva"]], "letra": letra_factura(c["condicion_iva"]),
         "documento": (f"{c['tipo_doc']} {formatear_cuit(c['nro_doc']) if c['tipo_doc'] == 'CUIT' else c['nro_doc']}"
                       if c["tipo_doc"] != "SIN" else ""),
-        "domicilio": ", ".join(x for x in (c["domicilio"], c["localidad"]) if x), "email": c["email"],
+        "domicilio": " - ".join(x for x in (c["domicilio"], c["localidad"]) if x), "email": c["email"],
     } for c in clientes] if paso == 2 else []
     conceptos = get_db().execute(
         "SELECT descripcion FROM conceptos WHERE activo = 1 ORDER BY descripcion COLLATE NOCASE"

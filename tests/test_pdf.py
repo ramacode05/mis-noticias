@@ -4,7 +4,7 @@ import json
 import re
 import sqlite3
 
-from facturacion.pdf import datos_qr, generar_pdf, importe, nombre_archivo
+from facturacion.pdf import CONDICION_ARCA, datos_qr, generar_pdf, importe, nombre_archivo
 from tests.test_facturas import BaseFacturas
 
 
@@ -35,6 +35,14 @@ class PdfTest(BaseFacturas):
         self.assertEqual(importe(33577500), "335775,00")
         self.assertEqual(importe(5), "0,05")
         self.assertEqual(importe(150000000), "1500000,00")
+
+    def test_textos_como_arca(self):
+        self.assertEqual(CONDICION_ARCA["RI"], "IVA Responsable Inscripto")
+        self.assertEqual(CONDICION_ARCA["MT"], "Responsable Monotributo")
+        self.assertEqual(CONDICION_ARCA["EX"], "IVA Sujeto Exento")
+        self.confirmar()
+        f, _ = self.factura()
+        self.assertEqual(f["cliente_domicilio"], "Ruta 9 km 300 - Rosario")  # separador de ARCA
 
     def test_factura_inexistente(self):
         self.assertEqual(self.cli.get("/facturas/99/pdf").status_code, 404)

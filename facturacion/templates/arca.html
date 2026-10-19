@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block titulo %}Conexión con ARCA{% endblock %}
+{% block contenido %}
+<h1>Conexión con ARCA</h1>
+
+<div class="formulario ancho">
+  <p><strong>Estado actual:</strong>
+  {% if activo == 'produccion' and ambientes.produccion.listo %}
+    <span class="etiqueta-cobrada">CONECTADO A ARCA - PRODUCCIÓN</span> Las facturas nuevas se autorizan en ARCA y son <strong>reales</strong>.
+  {% elif activo == 'homologacion' and ambientes.homologacion.listo %}
+    <span class="etiqueta-prueba">CONECTADO A ARCA - HOMOLOGACIÓN</span> Las facturas nuevas se autorizan en el ambiente de prueba de ARCA (sin validez fiscal).
+  {% else %}
+    <span class="etiqueta-prueba">SIN CONEXIÓN</span> Las facturas nuevas son de prueba del sistema (sin CAE).
+  {% endif %}</p>
+
+  <form method="post" action="{{ url_for('arca.activar') }}" class="fila activar-arca">
+    <label>Usar
+      <select name="ambiente" id="ambiente-activar">
+        <option value="" {% if not activo %}selected{% endif %}>Sin conexión (facturas de prueba del sistema)</option>
+        <option value="homologacion" {% if activo == 'homologacion' %}selected{% endif %} {% if not ambientes.homologacion.listo %}disabled{% endif %}>Homologación (prueba de ARCA){% if not ambientes.homologacion.listo %} — faltan pasos{% endif %}</option>
+        <option value="produccion" {% if activo == 'produccion' %}selected{% endif %} {% if not ambientes.produccion.listo %}disabled{% endif %}>Producción (facturas reales){% if not ambientes.produccion.listo %} — faltan pasos{% endif %}</option>
+      </select>
+    </label>
+    <label class="check" id="confirmo-produccion"><input type="checkbox" name="confirmo" value="1">
+      Entiendo que en producción las facturas son reales, van a ARCA y no se pueden borrar.</label>
+    <div><button type="submit" class="boton">Guardar</button></div>
+  </form>
+</div>
+
+{% if prueba %}
+<div class="aviso {{ 'ok' if prueba.ok else 'error' }}">
+  <strong>Prueba de conexión ({{ ambientes[prueba.ambiente].nombre }}):</strong>
+  <ul>{% for nombre, ok, detalle in prueba.pasos %}<li>{{ '✔' if ok else '✘' }} <strong>{{ nombre }}:</strong> {{ detalle }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% for clave in ('homologacion', 'produccion') %}
+{% set a = ambientes[clave] %}
+<h2 id="{{ clave }}">{{ a.nombre }} {% if a.listo %}<span class="etiqueta-cobrada">LISTO</span>{% endif %}</h2>
+<div class="formulario ancho pasos-arca">
+  {% if clave == 'homologacion' %}
+  <p class="nota">Primero hacemos todo acá: es el ambiente de prueba de ARCA. Las facturas que salgan no tienen validez fiscal.</p>
+  {% else %}
+  <p class="nota">Recién cuando todo funcione en homologación. Estas facturas son reales.</p>
+  {% endif %}
+
+  <h3>{{ '✔' if a.estado.pedido else '1.' }} Generar el pedido de certificado</h3>
+  {% if a.estado.pedido %}
+    <p>Pedido generado. Lo vas a pegar o subir en la página de ARCA (paso 2).</p>
+    <textarea readonly rows="6" class="pedido-csr" onclick="this.select()">{{ a.pedido }}</textarea>
+    <p><a class="boton secundario" href="{{ url_for('arca.bajar_pedido', ambiente=clave) }}">Bajar el pedido (archivo .csr)</a></p>
+  {% else %}
+    <form method="post" action="{{ url_for('arca.generar_pedido', ambiente=clave) }}">
+      <button type="submit" class="boton">Generar pedido de certificado</button>
+    </form>
+  {% endif %}
+
+  <h3>{{ '✔' if a.estado.certificado else '2.' }} Tramitar el certificado en ARCA y subirlo acá</h3>
+  {% if clave == 'homologacion' %}
+  <ol>
+    <li>Entrá a <strong>arca.gob.ar</strong> con tu clave fiscal (de la empresa).</li>
+    <li>Si no lo tenés, adherí el servicio <strong>"WSASS - Autogestión Certificados Homologación"</strong>
+        (en "Administrador de Relaciones de Clave Fiscal" → "Adherir servicio" → ARCA).</li>
+    <li>Entrá a <strong>WSASS</strong> → <strong>"Nuevo Certificado"</strong>. Nombre: <code>{{ alias }}</code>.
+        En "Solicitud de certificado en formato PKCS#10" pegá el texto del paso 1. Tocá "Crear DN y obtener certificado".</li>
+    <li>ARCA muestra el certificado: copiá todo el texto (desde <code>-----BEGIN CERTIFICATE-----</code> hasta <code>-----END CERTIFICATE-----</code>) y pegalo abajo.</li>
+    <li>En WSASS, <strong>"Crear autorización a servicio"</strong>: elegí el certificado <code>{{ alias }}</code> y el servicio
+        <strong>wsfe - Facturación Electrónica</strong>. Confirmá.</li>
+  </ol>
+  {% else %}
+  <ol>
+    <li>Entrá a <strong>arca.gob.ar</strong> con tu clave fiscal y abrí <strong>"Administración de Certificados Digitales"</strong>
+        (si no aparece, adherilo desde "Administrador de Relaciones de Clave Fiscal").</li>
+    <li>Elegí la empresa, tocá <strong>"Agregar alias"</strong>: alias <code>{{ alias }}</code> y subí el archivo .csr del paso 1.</li>
+    <li>Entrá al alias y bajá el certificado (archivo .crt). Subilo abajo.</li>
+    <li>En <strong>"Administrador de Relaciones de Clave Fiscal"</strong> → "Nueva Relación" → Buscar → ARCA → WebServices →
+        <strong>"Facturación Electrónica"</strong>. En "Representante" elegí el computador fiscal <code>{{ alias }}</code>. Confirmá.</li>
+  </ol>
+  {% endif %}
+  {% if a.estado.certificado %}
+    <p>Certificado cargado. Vence el <strong>{{ a.estado.vence.strftime('%d/%m/%Y') }}</strong>.</p>
+  {% endif %}
+  {% if a.estado.pedido %}
+  <form method="post" action="{{ url_for('arca.subir_certificado', ambiente=clave) }}" enctype="multipart/form-data">
+    <label>Archivo del certificado (.crt) <input type="file" name="archivo" accept=".crt,.pem,.cer"></label>
+    <label>…o pegá el texto del certificado
+      <textarea name="texto" rows="4" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label>
+    <button type="submit" class="boton">{{ 'Reemplazar' if a.estado.certificado else 'Guardar' }} certificado</button>
+  </form>
+  {% else %}
+  <p class="nota">Primero completá el paso 1.</p>
+  {% endif %}
+
+  <h3>{{ '✔' if a.punto_venta else '3.' }} Punto de venta para web services</h3>
+  {% if clave == 'homologacion' %}
+  <p class="nota">En homologación no hace falta crearlo en ARCA: usá cualquier número, por ejemplo <strong>4</strong>.</p>
+  {% else %}
+  <p class="nota">En ARCA, en <strong>"Administración de puntos de venta y domicilios"</strong> → "A/B/M de Puntos de venta" →
+     "Agregar": elegí un número nuevo (por ejemplo 4), sistema <strong>"RECE para aplicativo y web services"</strong> y el domicilio.
+     Los puntos 00002 y 00003 son de la página web de ARCA y no sirven para esto.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('arca.guardar_punto_venta', ambiente=clave) }}" class="fila-corta">
+    <input name="punto_venta" value="{{ '%05d'|format(a.punto_venta) if a.punto_venta else '' }}" inputmode="numeric" maxlength="5" placeholder="00004">
+    <button type="submit" class="boton secundario">Guardar punto de venta</button>
+  </form>
+
+  <h3>4. Probar la conexión</h3>
+  <form method="post" action="{{ url_for('arca.probar', ambiente=clave) }}">
+    <button type="submit" class="boton secundario" {% if not a.estado.certificado %}disabled{% endif %}>Probar conexión con ARCA</button>
+  </form>
+</div>
+{% endfor %}
+
+<p class="nota">Los archivos del certificado se guardan en la carpeta <code>instance\arca</code> (dentro de Google Drive, así los usan las dos computadoras).
+   No los compartas con nadie: con ellos se puede facturar a nombre de la empresa.</p>
+
+<script>
+  (function () {
+    var sel = document.getElementById('ambiente-activar');
+    var conf = document.getElementById('confirmo-produccion');
+    function mostrar() { conf.style.display = sel.value === 'produccion' ? '' : 'none'; }
+    sel.addEventListener('change', mostrar); mostrar();
+  })();
+</script>
+{% endblock %}

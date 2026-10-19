@@ -29,10 +29,16 @@ COLUMNAS_NUEVAS = [
     ("facturas", "remito_numero", "INTEGER"),
     ("facturas", "token", "TEXT"),
     ("facturas", "asociado_id", "INTEGER"),  # en una nota de crédito: la factura que anula
+    ("facturas", "arca", "TEXT"),  # NULL: prueba del sistema; "homologacion" o "produccion": con CAE
 ]
 
 # Índices sobre columnas nuevas: se crean después de agregar las columnas.
 INDICES_NUEVOS = [
+    # No puede haber dos comprobantes con el mismo número. Las facturas de prueba del sistema,
+    # las de homologación de ARCA y las reales se numeran cada una por su lado.
+    "DROP INDEX IF EXISTS facturas_numero_unico",
+    "CREATE UNIQUE INDEX IF NOT EXISTS facturas_numero_por_ambiente ON facturas "
+    "(punto_venta, cbte_tipo, prueba, COALESCE(arca, ''), numero)",
     "CREATE INDEX IF NOT EXISTS facturas_remito ON facturas (remito_pto_vta, remito_numero)",
     # Evita guardar dos veces la misma factura si se toca "Confirmar" dos veces.
     "CREATE UNIQUE INDEX IF NOT EXISTS facturas_token ON facturas (token) WHERE token IS NOT NULL",

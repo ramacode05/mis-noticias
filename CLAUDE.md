@@ -33,7 +33,8 @@
   descartó por ahora. Los datos se pueden mudar después sin perder nada.
 - Git para versionar.
 - Dependencias mínimas: agregar una librería solo si hace falta y con el OK del usuario.
-  Hoy: Flask y ReportLab (PDF y QR), fijadas en requirements.txt. `iniciar.bat` instala solo lo
+  Hoy: Flask, ReportLab (PDF y QR) y cryptography (certificado y firma para ARCA), fijadas en
+  requirements.txt. `iniciar.bat` instala solo lo
   que falte al arrancar, así una versión nueva con otra librería no obliga a correr instalar.bat.
 
 ## Estructura del proyecto
@@ -55,6 +56,10 @@ facturacion/            Código de la aplicación
   cuentas.py            Cuentas corrientes: saldos de todos los clientes y movimientos de cada uno
   resumen.py            Resumen mensual (ventas, cobros, detalle) y descarga en Excel
   excel.py              Arma archivos .xlsx con la biblioteca estándar de Python (zip + XML)
+  arca.py               Cliente de ARCA: clave/CSR/certificado, WSAA (ticket, se reusa 12 h) y WSFEv1
+                        (último autorizado, FECAESolicitar, FECompConsultar), SOAP con urllib
+  arca_web.py           Pantalla "ARCA" (pasos del certificado, punto de venta, probar, activar) y
+                        emisión con CAE (con recuperación si se corta la comunicación)
   candado.py            Aviso de "sistema en uso" entre las dos PCs (Google Drive)
   copias.py             Copias de seguridad: automática al abrir, pantalla "Copias" y descarga manual
   templates/            Páginas HTML
@@ -97,8 +102,8 @@ iniciar.bat             Abre el sistema en Windows
 
 ## Mejoras propuestas para más adelante
 
-- Etapa 10: los puntos de venta 00002/00003 son "Factura en Línea"; para web services ARCA exige
-  uno nuevo tipo "RECE / web services" que habrá que agregar a PUNTOS_VENTA.
+- Producción: crear en ARCA el punto de venta "RECE para aplicativo y web services" (00002/00003
+  son de la web y no sirven) y cargarlo en la pantalla ARCA.
 - Con el certificado de ARCA (etapa 10): consultar el padrón por CUIT para completar razón social,
   domicilio y condición frente al IVA al cargar un cliente nuevo (como hace RCEL).
 - Notas de crédito parciales (por una parte de la factura): hoy solo por el total.
@@ -164,7 +169,18 @@ iniciar.bat             Abre el sistema en Windows
    Copia local en cada PC al abrir (conserva 30, fuera de Drive) + Google Drive. Menú "Copias":
    lista de copias de esta PC y botón "Bajar una copia ahora" (copia consistente con la API de
    backup de SQLite). Restaurar: a mano y guiado (no hay botón, a propósito).
-10. **Conexión con ARCA (homologación y luego producción)**
-    Certificado digital, WSAA (autenticación) y WSFEv1 (obtener CAE).
-    Primero en el ambiente de prueba de ARCA; después en producción.
-    QR con datos reales del CAE.
+10. **Conexión con ARCA (homologación y luego producción)** — código hecho, falta probar con ARCA real
+    Pantalla "ARCA": por ambiente (homologación / producción) genera clave + CSR (CN=facturacion,
+    serialNumber "CUIT 30707871918"), recibe el .crt (valida que sea de la clave), punto de venta de
+    web services, "Probar conexión" (FEDummy, WSAA, último autorizado) y activar (producción pide
+    confirmación). Archivos en instance/arca/<ambiente>/ (Drive, no Git). Config en `configuracion`:
+    arca_ambiente, arca_pv_homologacion, arca_pv_produccion.
+    Con ARCA activo: el paso 1 ofrece solo el PV de web services; al confirmar, número = último
+    autorizado de ARCA + 1 y se pide CAE (FECAESolicitar con CondicionIVAReceptorId RG 5616, IVA 21%
+    Id 5, fechas de servicio). Si ARCA rechaza no se guarda nada y se muestra el motivo. Si se corta
+    la comunicación, se consulta si quedó autorizado (FECompConsultar) para no perder el CAE.
+    NC: misma vía, con CbtesAsoc = factura. Columna `arca` en facturas (NULL/homologacion/produccion);
+    numeración única por (pv, tipo, prueba, arca). Homologación: prueba=1 (marca de agua + QR).
+    El remito NO se envía a ARCA como comprobante asociado (solo se imprime).
+    Probado con un ARCA simulado (tests/test_arca.py); el entorno de desarrollo no llega a los
+    servidores de ARCA: la prueba real se hace desde la PC del usuario.

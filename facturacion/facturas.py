@@ -1,4 +1,7 @@
-"""Facturas A y B (por ahora de prueba, sin CAE de ARCA).
+"""Facturas A y B y notas de crédito.
+
+Si la conexión con ARCA está activa (pantalla ARCA), al confirmar se pide el CAE a ARCA y el
+número lo da ARCA. Si no, son facturas de prueba del sistema (numeradas por el sistema).
 
 La carga de una factura nueva sigue los mismos pasos que la web de ARCA (RCEL):
   1. Datos de emisión    (fecha, concepto, período facturado, vencimiento)
@@ -15,6 +18,7 @@ from datetime import date
 from flask import (Blueprint, Response, abort, flash, redirect, render_template, request,
                    url_for)
 
+from . import arca, arca_web
 from .cobros import cobro_de
 from .db import get_db
 from .importes import a_centavos, a_centesimos, calcular_totales, subtotal
@@ -28,7 +32,9 @@ NC_TIPO = {"A": 3, "B": 8}  # notas de crédito
 NOMBRE_CBTE = {1: "Factura A", 6: "Factura B", 3: "Nota de Crédito A", 8: "Nota de Crédito B"}
 CONCEPTOS = {1: "Productos", 2: "Servicios", 3: "Productos y Servicios"}
 CONDICION_VENTA = "Cuenta Corriente"  # la empresa siempre vende en cuenta corriente
-# Puntos de venta habilitados en ARCA (se eligen en el paso 1, como en RCEL).
+# Puntos de venta de la web de ARCA (se eligen en el paso 1, como en RCEL). Se usan para las
+# facturas de prueba del sistema. Con la conexión a ARCA activa se usa el punto de venta de
+# web services configurado en la pantalla ARCA (ARCA no deja usar estos por web services).
 PUNTOS_VENTA = {2: "Av Los Quilmes 1856 - Bernal, Buenos Aires",
                 3: "Av Los Quilmes 1856 - Bernal, Buenos Aires"}
 REMITO_PTO_VTA = 1  # punto de venta habitual de los remitos (se puede cambiar en el paso 2)
@@ -62,11 +68,28 @@ def nota_credito_de(factura_id):
                             (factura_id,)).fetchone()
 
 
-def ultima_factura(punto_venta, cbte_tipo, prueba=1):
+def puntos_venta():
+    """Los puntos de venta que se ofrecen en el paso 1 según el modo (prueba o ARCA)."""
+    ambiente = arca_web.ambiente_activo()
+    if ambiente:
+        etiqueta = "Web services ARCA" + (" - HOMOLOGACIÓN (prueba)" if ambiente == "homologacion" else "")
+        return {arca_web.punto_venta(ambiente): etiqueta}
+    return PUNTOS_VENTA
+
+
+def ultima_factura(punto_venta, cbte_tipo, prueba=1, ambiente=None):
+    """El último comprobante de ese tipo y punto de venta, en el mismo modo (prueba o ARCA)."""
     return get_db().execute(
         "SELECT numero, fecha FROM facturas WHERE punto_venta = ? AND cbte_tipo = ? AND prueba = ? "
-        "ORDER BY numero DESC LIMIT 1", (punto_venta, cbte_tipo, prueba)
+        "AND COALESCE(arca, '') = ? ORDER BY numero DESC LIMIT 1",
+        (punto_venta, cbte_tipo, prueba, ambiente or "")
     ).fetchone()
+
+
+def modo_actual():
+    """(prueba, ambiente) para los comprobantes nuevos."""
+    ambiente = arca_web.ambiente_activo()
+    return (0 if ambiente == "produccion" else 1), ambiente
 
 
 def leer_formulario(form):
@@ -85,9 +108,10 @@ def leer_formulario(form):
 def datos_iniciales(cliente_id=None):
     hoy = date.today().isoformat()
     # Propone el punto de venta de la última factura (o el primero de la lista).
+    opciones = puntos_venta()
     ultima = get_db().execute("SELECT punto_venta FROM facturas ORDER BY id DESC LIMIT 1").fetchone()
-    punto_venta = ultima["punto_venta"] if ultima and ultima["punto_venta"] in PUNTOS_VENTA \
-        else next(iter(PUNTOS_VENTA))
+    punto_venta = ultima["punto_venta"] if ultima and ultima["punto_venta"] in opciones \
+        else next(iter(opciones))
     return {"token": uuid.uuid4().hex, "punto_venta": str(punto_venta), "fecha": hoy,
             "concepto": "3", "serv_desde": hoy, "serv_hasta": hoy, "vto_pago": hoy,
             "cliente_id": str(cliente_id or ""), "remito_pto_vta": str(REMITO_PTO_VTA),
@@ -107,7 +131,7 @@ def numero_o_none(texto, maximo):
 
 def validar_emision(datos):
     errores = {}
-    if numero_o_none(datos["punto_venta"], 99998) not in PUNTOS_VENTA:
+    if numero_o_none(datos["punto_venta"], 99998) not in puntos_venta():
         errores["punto_venta"] = "Elegí el punto de venta."
     concepto = int(datos["concepto"]) if datos["concepto"].isdigit() else 0
     if concepto not in CONCEPTOS:
@@ -152,7 +176,8 @@ def validar_receptor(datos):
     else:
         letra = letra_factura(cliente["condicion_iva"])
         punto_venta = numero_o_none(datos["punto_venta"], 99998)
-        ultima = ultima_factura(punto_venta, CBTE_TIPO[letra]) if punto_venta else None
+        prueba, ambiente = modo_actual()
+        ultima = ultima_factura(punto_venta, CBTE_TIPO[letra], prueba, ambiente) if punto_venta else None
         if ultima and datos["fecha"] and datos["fecha"] < ultima["fecha"]:
             errores["cliente_id"] = (
                 f"La fecha del comprobante (paso 1) no puede ser anterior a la última Factura {letra} "
@@ -215,59 +240,92 @@ VALIDAR_PASO = {
 
 # --- Guardado ---------------------------------------------------------------------------
 
-def guardar_factura(datos, cliente, renglones):
-    """Guarda la factura con el número siguiente. Devuelve el id.
+CAMPOS_COMPROBANTE = (
+    "cbte_tipo", "letra", "punto_venta", "numero", "prueba", "arca", "fecha", "concepto",
+    "serv_desde", "serv_hasta", "vto_pago", "condicion_venta", "cliente_id", "cliente_razon_social",
+    "cliente_condicion_iva", "cliente_tipo_doc", "cliente_nro_doc", "cliente_domicilio", "neto",
+    "iva", "total", "observaciones", "remito_pto_vta", "remito_numero", "token", "asociado_id",
+    "cae", "cae_vto")
 
-    Si ya existe una factura con el mismo token (se tocó "Confirmar" dos veces),
-    devuelve esa en lugar de crear otra.
+
+def insertar_comprobante(db, c, renglones):
+    """Guarda el comprobante (dict con CAMPOS_COMPROBANTE) y sus renglones. Devuelve el id."""
+    cur = db.execute(f"INSERT INTO facturas ({', '.join(CAMPOS_COMPROBANTE)}) "
+                     f"VALUES ({', '.join('?' * len(CAMPOS_COMPROBANTE))})",
+                     [c.get(campo) for campo in CAMPOS_COMPROBANTE])
+    db.executemany(
+        "INSERT INTO factura_renglones (factura_id, orden, descripcion, cantidad, "
+        "precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
+        [(cur.lastrowid, i, r["descripcion"], r["cantidad"], r["precio_unitario"], r["subtotal"])
+         for i, r in enumerate(renglones, start=1)])
+    return cur.lastrowid
+
+
+def numerar_y_autorizar(db, c, asociada=None):
+    """Completa número (y CAE si corresponde) en el comprobante c.
+
+    Con ARCA: el número y el CAE los da ARCA (lanza arca.ErrorArca si lo rechaza).
+    Sin ARCA: número siguiente del sistema.
+    """
+    if c["arca"]:
+        respuesta = arca_web.emitir(c["arca"], c, asociada)
+        c.update(numero=respuesta["numero"], cae=respuesta["cae"], cae_vto=respuesta["cae_vto"])
+        return respuesta["observaciones"]
+    ultima = ultima_factura(c["punto_venta"], c["cbte_tipo"], c["prueba"], c["arca"])
+    c["numero"] = (ultima["numero"] if ultima else 0) + 1
+    return []
+
+
+def guardar_factura(datos, cliente, renglones):
+    """Guarda la factura con el número siguiente (pidiendo el CAE a ARCA si está conectado).
+
+    Devuelve (id, observaciones_de_arca). Si ya existe una factura con el mismo token (se tocó
+    "Confirmar" dos veces), devuelve esa en lugar de crear otra.
     """
     db = get_db()
     letra = letra_factura(cliente["condicion_iva"])
-    cbte_tipo = CBTE_TIPO[letra]
     totales = calcular_totales([(r["cantidad"], r["precio_unitario"]) for r in renglones])
-    domicilio = " - ".join(x for x in (cliente["domicilio"], cliente["localidad"]) if x)
     concepto = int(datos["concepto"])
     servicio = concepto in (2, 3)
-
-    # BEGIN IMMEDIATE bloquea la base mientras se asigna el número, así dos personas
-    # facturando al mismo tiempo nunca obtienen el mismo número.
+    prueba, ambiente = modo_actual()
+    remito = int(datos["remito_numero"]) if datos["remito_numero"] else None
+    c = {
+        "cbte_tipo": CBTE_TIPO[letra], "letra": letra, "punto_venta": int(datos["punto_venta"]),
+        "prueba": prueba, "arca": ambiente, "fecha": datos["fecha"], "concepto": concepto,
+        "serv_desde": datos["serv_desde"] if servicio else None,
+        "serv_hasta": datos["serv_hasta"] if servicio else None,
+        "vto_pago": datos["vto_pago"] if servicio else None,
+        "condicion_venta": CONDICION_VENTA, "cliente_id": cliente["id"],
+        "cliente_razon_social": cliente["razon_social"], "cliente_condicion_iva": cliente["condicion_iva"],
+        "cliente_tipo_doc": cliente["tipo_doc"], "cliente_nro_doc": cliente["nro_doc"],
+        "cliente_domicilio": " - ".join(x for x in (cliente["domicilio"], cliente["localidad"]) if x),
+        "neto": totales["neto"], "iva": totales["iva"], "total": totales["total"],
+        "observaciones": datos["observaciones"],
+        "remito_pto_vta": int(datos["remito_pto_vta"]) if remito else None, "remito_numero": remito,
+        "token": datos["token"],
+    }
+    # BEGIN IMMEDIATE bloquea la base mientras se asigna el número, así nunca se repite.
     db.execute("BEGIN IMMEDIATE")
     try:
         repetida = db.execute("SELECT id FROM facturas WHERE token = ?", (datos["token"],)).fetchone()
         if repetida:
             db.rollback()
-            return repetida["id"]
-        punto_venta = int(datos["punto_venta"])
-        ultima = ultima_factura(punto_venta, cbte_tipo)
-        numero = (ultima["numero"] if ultima else 0) + 1
-        remito = int(datos["remito_numero"]) if datos["remito_numero"] else None
-        cur = db.execute(
-            """INSERT INTO facturas (cbte_tipo, letra, punto_venta, numero, prueba, fecha, concepto,
-                   serv_desde, serv_hasta, vto_pago, condicion_venta, cliente_id,
-                   cliente_razon_social, cliente_condicion_iva, cliente_tipo_doc, cliente_nro_doc,
-                   cliente_domicilio, neto, iva, total, observaciones,
-                   remito_pto_vta, remito_numero, token)
-               VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (cbte_tipo, letra, punto_venta, numero, datos["fecha"], concepto,
-             datos["serv_desde"] if servicio else None, datos["serv_hasta"] if servicio else None,
-             datos["vto_pago"] if servicio else None, CONDICION_VENTA, cliente["id"],
-             cliente["razon_social"], cliente["condicion_iva"], cliente["tipo_doc"],
-             cliente["nro_doc"], domicilio, totales["neto"], totales["iva"], totales["total"],
-             datos["observaciones"],
-             int(datos["remito_pto_vta"]) if remito else None, remito, datos["token"]),
-        )
-        factura_id = cur.lastrowid
-        db.executemany(
-            "INSERT INTO factura_renglones (factura_id, orden, descripcion, cantidad, "
-            "precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-            [(factura_id, i, r["descripcion"], r["cantidad"], r["precio_unitario"], r["subtotal"])
-             for i, r in enumerate(renglones, start=1)],
-        )
+            return repetida["id"], []
+        observaciones = numerar_y_autorizar(db, c)
+        factura_id = insertar_comprobante(db, c, renglones)
         db.commit()
     except Exception:
         db.rollback()
         raise
-    return factura_id
+    return factura_id, observaciones
+
+
+def mensaje_emitida(f):
+    if f["arca"] == "produccion":
+        return f"autorizada por ARCA. CAE {f['cae']}."
+    if f["arca"] == "homologacion":
+        return f"autorizada por ARCA en HOMOLOGACIÓN (prueba, sin validez fiscal). CAE {f['cae']}."
+    return "generada (de prueba)."
 
 
 def crear_cliente_rapido(form):
@@ -359,10 +417,16 @@ def nueva():
             else:
                 cliente, _ = validar_receptor(datos)
                 renglones, _ = validar_operacion(datos)
-                factura_id = guardar_factura(datos, cliente, renglones)
-                f = get_db().execute("SELECT * FROM facturas WHERE id = ?", (factura_id,)).fetchone()
-                flash(f"Factura {f['letra']} N° {f['numero']} generada (de prueba).", "ok")
-                return redirect(url_for("facturas.ver", id=factura_id))
+                try:
+                    factura_id, observaciones = guardar_factura(datos, cliente, renglones)
+                except arca.ErrorArca as error:
+                    errores = {"arca": str(error)}
+                else:
+                    f = get_db().execute("SELECT * FROM facturas WHERE id = ?", (factura_id,)).fetchone()
+                    flash(f"Factura {f['letra']} N° {f['numero']} " + mensaje_emitida(f), "ok")
+                    for obs in observaciones:
+                        flash(f"Observación de ARCA: {obs}", "aviso")
+                    return redirect(url_for("facturas.ver", id=factura_id))
 
     cliente = buscar_cliente(datos)
     renglones, _ = validar_operacion(datos) if paso == 4 else ([], {})
@@ -389,7 +453,7 @@ def nueva():
         clientes_json=clientes_json, conceptos=conceptos, renglones=renglones,
         totales=calcular_totales([(r["cantidad"], r["precio_unitario"]) for r in renglones]),
         nuevo_cliente=nuevo_cliente, CONCEPTOS=CONCEPTOS, CONDICION_VENTA=CONDICION_VENTA,
-        PUNTOS_VENTA=PUNTOS_VENTA,
+        PUNTOS_VENTA=puntos_venta(), ambiente=arca_web.ambiente_activo(),
     )
 
 
@@ -472,7 +536,12 @@ def validar_nota_credito(factura, fecha_texto):
         return f"ARCA solo acepta fechas hasta {margen} días antes o después de hoy."
     if fecha_texto < factura["fecha"]:
         return "La nota de crédito no puede tener fecha anterior a la factura."
-    ultima = ultima_factura(factura["punto_venta"], NC_TIPO[factura["letra"]], factura["prueba"])
+    if factura["arca"] and factura["arca"] != arca_web.ambiente_activo():
+        return ("Esta factura se autorizó en ARCA " + ("HOMOLOGACIÓN" if factura["arca"] == "homologacion"
+                else "PRODUCCIÓN") + ", y ahora la conexión con ese ambiente no está activa. "
+                "Activalo en la pantalla ARCA para hacer la nota de crédito.")
+    ultima = ultima_factura(factura["punto_venta"], NC_TIPO[factura["letra"]], factura["prueba"],
+                            factura["arca"])
     if ultima and fecha_texto < ultima["fecha"]:
         return (f"La fecha no puede ser anterior a la última Nota de Crédito {factura['letra']} "
                 f"({date.fromisoformat(ultima['fecha']):%d/%m/%Y}).")
@@ -480,40 +549,29 @@ def validar_nota_credito(factura, fecha_texto):
 
 
 def guardar_nota_credito(factura, fecha, observaciones, token):
-    """Copia la factura como nota de crédito por el total. Devuelve el id de la nota."""
+    """Nota de crédito por el total de la factura, en el mismo modo que la factura (prueba del
+    sistema o ARCA). Devuelve (id, observaciones_de_arca)."""
     db = get_db()
-    cbte_tipo = NC_TIPO[factura["letra"]]
+    c = {campo: factura[campo] for campo in CAMPOS_COMPROBANTE if campo in factura.keys()}
+    c.update(cbte_tipo=NC_TIPO[factura["letra"]], numero=None, fecha=fecha,
+             vto_pago=fecha if factura["vto_pago"] else None, observaciones=observaciones,
+             token=token, asociado_id=factura["id"], remito_pto_vta=None, remito_numero=None,
+             cae=None, cae_vto=None)
+    renglones = db.execute("SELECT * FROM factura_renglones WHERE factura_id = ? ORDER BY orden",
+                           (factura["id"],)).fetchall()
     db.execute("BEGIN IMMEDIATE")
     try:
         repetida = db.execute("SELECT id FROM facturas WHERE token = ?", (token,)).fetchone()
         if repetida:
             db.rollback()
-            return repetida["id"]
-        ultima = ultima_factura(factura["punto_venta"], cbte_tipo, factura["prueba"])
-        numero = (ultima["numero"] if ultima else 0) + 1
-        cur = db.execute(
-            """INSERT INTO facturas (cbte_tipo, letra, punto_venta, numero, prueba, fecha, concepto,
-                   serv_desde, serv_hasta, vto_pago, condicion_venta, cliente_id,
-                   cliente_razon_social, cliente_condicion_iva, cliente_tipo_doc, cliente_nro_doc,
-                   cliente_domicilio, neto, iva, total, observaciones, token, asociado_id)
-               SELECT ?, letra, punto_venta, ?, prueba, ?, concepto,
-                   serv_desde, serv_hasta, CASE WHEN vto_pago IS NULL THEN NULL ELSE ? END,
-                   condicion_venta, cliente_id, cliente_razon_social, cliente_condicion_iva,
-                   cliente_tipo_doc, cliente_nro_doc, cliente_domicilio, neto, iva, total, ?, ?, id
-               FROM facturas WHERE id = ?""",
-            (cbte_tipo, numero, fecha, fecha, observaciones, token, factura["id"]),
-        )
-        nota_id = cur.lastrowid
-        db.execute(
-            """INSERT INTO factura_renglones (factura_id, orden, descripcion, cantidad, precio_unitario,
-                   subtotal)
-               SELECT ?, orden, descripcion, cantidad, precio_unitario, subtotal
-               FROM factura_renglones WHERE factura_id = ?""", (nota_id, factura["id"]))
+            return repetida["id"], []
+        observaciones_arca = numerar_y_autorizar(db, c, asociada=factura)
+        nota_id = insertar_comprobante(db, c, renglones)
         db.commit()
     except Exception:
         db.rollback()
         raise
-    return nota_id
+    return nota_id, observaciones_arca
 
 
 @bp.route("/<int:id>/nota-credito", methods=("GET", "POST"))
@@ -534,11 +592,18 @@ def nota_credito(id):
             return redirect(url_for("facturas.ver", id=repetida["id"]))
         error = validar_nota_credito(factura, datos["fecha"])
         if not error:
-            nota_id = guardar_nota_credito(factura, datos["fecha"], datos["observaciones"], datos["token"])
-            nota = db.execute("SELECT * FROM facturas WHERE id = ?", (nota_id,)).fetchone()
-            flash(f"Nota de Crédito {nota['letra']} N° {nota['numero']} generada"
-                  f"{' (de prueba)' if nota['prueba'] else ''}. La factura quedó anulada.", "ok")
-            return redirect(url_for("facturas.ver", id=nota_id))
+            try:
+                nota_id, observaciones = guardar_nota_credito(factura, datos["fecha"],
+                                                              datos["observaciones"], datos["token"])
+            except arca.ErrorArca as e:
+                error = str(e)
+            else:
+                nota = db.execute("SELECT * FROM facturas WHERE id = ?", (nota_id,)).fetchone()
+                flash(f"Nota de Crédito {nota['letra']} N° {nota['numero']} {mensaje_emitida(nota)} "
+                      "La factura quedó anulada.", "ok")
+                for obs in observaciones:
+                    flash(f"Observación de ARCA: {obs}", "aviso")
+                return redirect(url_for("facturas.ver", id=nota_id))
     else:
         error = validar_nota_credito(factura, datos["fecha"]) if (
             es_nota_credito(factura) or nota_credito_de(id) or cobro_de(id)) else None

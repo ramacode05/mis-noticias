@@ -67,13 +67,12 @@ CREATE TABLE IF NOT EXISTS facturas (
     observaciones       TEXT NOT NULL DEFAULT '',
     cae                 TEXT,
     cae_vto             TEXT,
-    -- remito_pto_vta, remito_numero, token y asociado_id se agregan desde db.py (COLUMNAS_NUEVAS).
+    -- remito_pto_vta, remito_numero, token, asociado_id y arca se agregan desde db.py (COLUMNAS_NUEVAS).
     creado              TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
--- No puede haber dos comprobantes con el mismo número (las de prueba van aparte).
-CREATE UNIQUE INDEX IF NOT EXISTS facturas_numero_unico
-    ON facturas (punto_venta, cbte_tipo, prueba, numero);
+-- La regla de "no repetir números" se crea en db.py (INDICES_NUEVOS), porque depende de la
+-- columna `arca`, que se agrega después.
 CREATE INDEX IF NOT EXISTS facturas_cliente ON facturas (cliente_id);
 CREATE INDEX IF NOT EXISTS facturas_fecha ON facturas (fecha);
 

@@ -2,7 +2,7 @@
 {% block titulo %}{{ f|nombre_cbte }} {{ f|nro_cbte }}{% endblock %}
 {% block contenido %}
 <div class="encabezado">
-  <h1>{{ f|nombre_cbte }} N° {{ f|nro_cbte }} {% if f.prueba %}<span class="etiqueta-prueba">PRUEBA</span>{% endif %}
+  <h1>{{ f|nombre_cbte }} N° {{ f|nro_cbte }} {% if f.arca == 'homologacion' %}<span class="etiqueta-prueba">ARCA HOMOLOGACIÓN</span>{% elif f.prueba %}<span class="etiqueta-prueba">PRUEBA</span>{% endif %}
     {% if nota_credito %}<span class="etiqueta-anulada">ANULADA</span>{% endif %}
     {% if cobro %}<span class="etiqueta-cobrada">COBRADA</span>{% endif %}</h1>
   <div class="acciones">
@@ -43,7 +43,7 @@
       {% endif %}
       <strong>Condición de venta:</strong> {{ f.condicion_venta }}<br>
       {% if f.remito_numero %}<strong>Remito asociado:</strong> R {{ "%05d"|format(f.remito_pto_vta) }}-{{ "%08d"|format(f.remito_numero) }}<br>{% endif %}
-      <strong>CAE:</strong> {{ f.cae or 'sin CAE (comprobante de prueba)' }}
+      <strong>CAE:</strong> {% if f.cae %}{{ f.cae }} (vence {{ f.cae_vto|fecha }}){% if f.arca == 'homologacion' %} — homologación, sin validez fiscal{% endif %}{% else %}sin CAE (comprobante de prueba){% endif %}
     </div>
   </div>
 

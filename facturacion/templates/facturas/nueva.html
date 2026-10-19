@@ -37,14 +37,15 @@
 <div class="rcel">
   <div class="rcel-titulo">
     <div>GENERACIÓN DE COMPROBANTES - <span id="titulo-comprobante">FACTURA{% if letra %} {{ letra }}{% endif %}</span>
-      <span class="etiqueta-prueba">PRUEBA</span></div>
+      {% if ambiente == 'produccion' %}<span class="etiqueta-cobrada">ARCA</span>{% elif ambiente == 'homologacion' %}<span class="etiqueta-prueba">ARCA HOMOLOGACIÓN</span>{% else %}<span class="etiqueta-prueba">PRUEBA</span>{% endif %}</div>
     <div class="rcel-subtitulo">{{ PASOS[paso]|upper }} (PASO {{ paso }} DE 4)</div>
   </div>
   <div class="rcel-puntos" aria-label="Paso {{ paso }} de 4">
     {% for n in PASOS %}<span class="{{ 'actual' if n == paso else ('hecho' if n < paso else '') }}" title="{{ PASOS[n] }}"></span>{% endfor %}
   </div>
 
-  {% if errores and not errores.nuevo_cliente %}<div class="aviso error">Revisá los datos marcados en rojo.</div>{% endif %}
+  {% if errores.arca %}<div class="aviso error"><strong>ARCA no autorizó la factura. No se guardó nada.</strong><br>{{ errores.arca }}</div>
+  {% elif errores and not errores.nuevo_cliente %}<div class="aviso error">Revisá los datos marcados en rojo.</div>{% endif %}
 
   <form method="post" action="{{ url_for('facturas.nueva') }}" id="form-factura" autocomplete="off">
     {{ ocultos() }}
@@ -254,7 +255,13 @@
       {% if datos.observaciones %}<p><strong>Observaciones:</strong> {{ datos.observaciones }}</p>{% endif %}
     </section>
 
+    {% if ambiente == 'produccion' %}
+    <p class="aviso aviso-arca centro">Al confirmar, la factura {{ letra }} se envía a <strong>ARCA</strong> y queda autorizada con CAE. <strong>Es una factura real.</strong></p>
+    {% elif ambiente == 'homologacion' %}
+    <p class="nota centro">Al confirmar, la factura {{ letra }} se envía al ambiente de <strong>prueba de ARCA</strong> (homologación, sin validez fiscal).</p>
+    {% else %}
     <p class="nota centro">Revisá los datos. Al confirmar se genera la factura {{ letra }} (de prueba, sin CAE).</p>
+    {% endif %}
     {{ botones('Confirmar Datos') }}
     {% endif %}
   </form>

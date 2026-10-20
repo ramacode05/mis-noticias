@@ -18,7 +18,7 @@ from datetime import date
 from flask import (Blueprint, Response, abort, flash, redirect, render_template, request,
                    url_for)
 
-from . import arca, arca_web
+from . import arca, arca_web, mail
 from .cobros import cobro_de
 from .db import get_db
 from .importes import a_centavos, a_centesimos, calcular_totales, subtotal
@@ -426,6 +426,9 @@ def nueva():
                     flash(f"Factura {f['letra']} N° {f['numero']} " + mensaje_emitida(f), "ok")
                     for obs in observaciones:
                         flash(f"Observación de ARCA: {obs}", "aviso")
+                    envio = mail.enviar_si_corresponde(factura_id)
+                    if envio:
+                        flash(envio[1], "ok" if envio[0] == "ok" else "error")
                     return redirect(url_for("facturas.ver", id=factura_id))
 
     cliente = buscar_cliente(datos)
@@ -468,6 +471,7 @@ def ver(id):
     asociada = (db.execute("SELECT * FROM facturas WHERE id = ?", (factura["asociado_id"],)).fetchone()
                 if factura["asociado_id"] else None)
     return render_template("facturas/ver.html", f=factura, renglones=renglones, CONCEPTOS=CONCEPTOS,
+                           mail_configurado=mail.configurado(),
                            es_nc=es_nota_credito(factura), asociada=asociada, cobro=cobro_de(id),
                            nota_credito=None if es_nota_credito(factura) else nota_credito_de(id))
 

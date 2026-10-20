@@ -30,6 +30,9 @@ COLUMNAS_NUEVAS = [
     ("facturas", "token", "TEXT"),
     ("facturas", "asociado_id", "INTEGER"),  # en una nota de crédito: la factura que anula
     ("facturas", "arca", "TEXT"),  # NULL: prueba del sistema; "homologacion" o "produccion": con CAE
+    ("facturas", "mail_enviado", "TEXT"),  # cuándo se mandó por mail al cliente
+    ("facturas", "mail_para", "TEXT"),     # a qué dirección(es)
+    ("facturas", "mail_error", "TEXT"),    # por qué no se pudo mandar (si falló)
 ]
 
 # Índices sobre columnas nuevas: se crean después de agregar las columnas.

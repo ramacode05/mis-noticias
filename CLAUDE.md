@@ -60,6 +60,7 @@ facturacion/            Código de la aplicación
                         (último autorizado, FECAESolicitar, FECompConsultar), SOAP con urllib
   arca_web.py           Pantalla "ARCA" (pasos del certificado, punto de venta, probar, activar) y
                         emisión con CAE (con recuperación si se corta la comunicación)
+  mail.py               Envío de facturas por Gmail (SMTP + contraseña de aplicación) y pantalla "Mail"
   candado.py            Aviso de "sistema en uso" entre las dos PCs (Google Drive)
   copias.py             Copias de seguridad: automática al abrir, pantalla "Copias" y descarga manual
   templates/            Páginas HTML
@@ -99,6 +100,16 @@ iniciar.bat             Abre el sistema en Windows
 - Códigos ARCA: Factura A = 1, Factura B = 6 (NC A = 3, NC B = 8).
 - Fecha de emisión: ±5 días (productos) o ±10 días (servicios) de hoy, y no anterior a la última del mismo tipo.
 - La factura copia los datos del cliente al emitirse (editar el cliente no cambia facturas viejas).
+
+## Envío por mail (pedido del usuario)
+
+- Al autorizarse una factura **real** (ARCA producción) se manda sola al email del cliente (puede tener
+  varios, separados por coma). Asunto "Factura A 00004-00000012", texto exacto
+  "Buenos días, adjunto factura", adjunto el PDF ORIGINAL. Las de prueba/homologación y las notas de
+  crédito NO se mandan solas. Botón "Enviar/Reenviar por mail" en la factura real.
+- Desde Gmail con contraseña de aplicación (smtp.gmail.com:465). Config en `configuracion`:
+  mail_usuario, mail_clave, mail_automatico. Si falla el mail, la factura igual queda emitida y se
+  anota el motivo (columnas mail_enviado, mail_para, mail_error).
 
 ## Mejoras propuestas para más adelante
 

@@ -17,7 +17,7 @@ def create_app(config=None):
 
     os.makedirs(app.instance_path, exist_ok=True)
 
-    from . import arca_web, db, clientes, cobros, conceptos, copias, cuentas, facturas, resumen
+    from . import arca_web, db, clientes, cobros, conceptos, copias, cuentas, facturas, mail, resumen
     from .importes import formato_cantidad, formato_pesos
     db.init_app(app)
     app.register_blueprint(clientes.bp)
@@ -28,6 +28,7 @@ def create_app(config=None):
     app.register_blueprint(resumen.bp)
     app.register_blueprint(copias.bp)
     app.register_blueprint(arca_web.bp)
+    app.register_blueprint(mail.bp)
 
     # Formatos para mostrar en las páginas.
     app.add_template_filter(formato_pesos, "pesos")

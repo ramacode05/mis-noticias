@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block titulo %}Mail{% endblock %}
+{% block contenido %}
+<h1>Envío de facturas por mail</h1>
+
+<div class="formulario ancho">
+  <p>Cuando ARCA autoriza una factura <strong>real</strong>, el sistema la manda sola al email del cliente:</p>
+  <ul>
+    <li><strong>Asunto:</strong> Factura A 00004-00000012 (con el número de cada factura)</li>
+    <li><strong>Texto:</strong> {{ texto }}</li>
+    <li><strong>Adjunto:</strong> el PDF de la factura (original)</li>
+  </ul>
+  <p class="nota">Las facturas de prueba nunca se mandan a los clientes. El email de cada cliente se carga en
+     <a href="{{ url_for('clientes.lista') }}">Clientes</a>.</p>
+</div>
+
+<h2>Cuenta de Gmail desde la que salen las facturas</h2>
+<form method="post" class="formulario ancho">
+  <label>Dirección de Gmail
+    <input name="usuario" value="{{ usuario }}" placeholder="empresa@gmail.com" maxlength="200">
+  </label>
+  <label>Contraseña de aplicación {% if tiene_clave %}<small>(ya cargada; dejala vacía para no cambiarla)</small>{% endif %}
+    <input name="clave" type="password" autocomplete="new-password" placeholder="16 letras, por ejemplo abcd efgh ijkl mnop" maxlength="30">
+    <small>No es la contraseña normal de Gmail: es una especial para programas (ver abajo cómo sacarla).</small>
+  </label>
+  <label class="check"><input type="checkbox" name="automatico" value="1" {% if automatico %}checked{% endif %}>
+    Mandar automáticamente cada factura apenas ARCA la autoriza</label>
+  <div class="acciones">
+    <button type="submit" class="boton">Guardar</button>
+  </div>
+</form>
+{% if usuario and tiene_clave %}
+<form method="post" action="{{ url_for('mail.prueba') }}" class="acciones" style="margin-top:1rem">
+  <button type="submit" class="boton secundario">Mandarme un mail de prueba</button>
+</form>
+{% endif %}
+
+<h2>Cómo sacar la contraseña de aplicación de Gmail</h2>
+<div class="formulario ancho pasos-arca">
+  <ol>
+    <li>Entrá a <strong>myaccount.google.com</strong> con la cuenta de Gmail desde la que van a salir las facturas.</li>
+    <li>Andá a <strong>Seguridad</strong> y activá la <strong>Verificación en 2 pasos</strong> (si ya está activada, seguí).</li>
+    <li>En el buscador de arriba escribí <strong>"Contraseñas de aplicaciones"</strong> y entrá.</li>
+    <li>Como nombre poné <strong>Facturacion</strong> y tocá <strong>Crear</strong>.</li>
+    <li>Google te muestra <strong>16 letras</strong> en 4 grupos. Copialas y pegalas arriba, en "Contraseña de aplicación".</li>
+  </ol>
+  <p class="nota">Esa contraseña solo sirve para mandar mails desde este sistema. Si algún día querés cortarle el acceso,
+     la borrás desde la misma página de Google.</p>
+</div>
+{% endblock %}

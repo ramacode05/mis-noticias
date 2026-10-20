@@ -166,3 +166,5 @@ td.num { white-space: nowrap; }
 .activar-arca { align-items: flex-end; flex-wrap: wrap; }
 .activar-arca select { max-width: 32rem; }
 code { background: #eef1f5; padding: 0 .25rem; border-radius: 3px; }
+form.en-linea { display: inline; }
+.error-texto { color: #b42318; }

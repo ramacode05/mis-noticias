@@ -48,7 +48,8 @@
 
   <div class="fila">
     <label>Email
-      <input name="email" type="email" value="{{ cliente.email }}" maxlength="200">
+      <input name="email" value="{{ cliente.email }}" maxlength="200" placeholder="facturas@cliente.com">
+      <small>A esta dirección se mandan las facturas. Si son varias, separalas con coma.</small>
       {{ error('email') }}
     </label>
     <label>Teléfono

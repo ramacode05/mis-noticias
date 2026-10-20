@@ -86,7 +86,9 @@ def validar_cliente(datos):
     if cond in ("RI", "MT", "EX") and tipo != "CUIT" and "tipo_doc" not in errores:
         errores["tipo_doc"] = f"Un cliente {CONDICIONES_IVA[cond]} debe tener CUIT."
 
-    if limpio["email"] and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", limpio["email"]):
-        errores["email"] = "El email no parece válido."
+    mails = [m for m in re.split(r"[,;\s]+", limpio["email"]) if m]
+    if any(not re.fullmatch(r"[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+", m) for m in mails):
+        errores["email"] = "El email no parece válido (si son varios, separalos con coma)."
+    limpio["email"] = ", ".join(mails)
 
     return limpio, errores

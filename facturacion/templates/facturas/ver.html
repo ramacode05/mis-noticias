@@ -8,6 +8,11 @@
   <div class="acciones">
     <a class="boton" href="{{ url_for('facturas.pdf', id=f.id) }}" target="_blank">PDF (original, duplicado y triplicado)</a>
     <a class="boton secundario" href="{{ url_for('facturas.pdf', id=f.id, copias=1) }}" target="_blank">PDF solo original</a>
+    {% if not f.prueba and mail_configurado %}
+    <form method="post" action="{{ url_for('mail.reenviar', factura_id=f.id) }}" class="en-linea">
+      <button type="submit" class="boton secundario">{{ 'Reenviar' if f.mail_enviado else 'Enviar' }} por mail</button>
+    </form>
+    {% endif %}
     <a class="boton secundario" href="{{ url_for('facturas.nueva') }}">+ Nueva factura</a>
   </div>
 </div>
@@ -43,6 +48,7 @@
       {% endif %}
       <strong>Condición de venta:</strong> {{ f.condicion_venta }}<br>
       {% if f.remito_numero %}<strong>Remito asociado:</strong> R {{ "%05d"|format(f.remito_pto_vta) }}-{{ "%08d"|format(f.remito_numero) }}<br>{% endif %}
+      {% if not f.prueba %}<strong>Mail:</strong> {% if f.mail_enviado %}enviado a {{ f.mail_para }} el {{ f.mail_enviado[:10]|fecha }} a las {{ f.mail_enviado[11:16] }}{% elif f.mail_error %}<span class="error-texto">no se pudo mandar: {{ f.mail_error }}</span>{% else %}no enviado{% endif %}<br>{% endif %}
       <strong>CAE:</strong> {% if f.cae %}{{ f.cae }} (vence {{ f.cae_vto|fecha }}){% if f.arca == 'homologacion' %} — homologación, sin validez fiscal{% endif %}{% else %}sin CAE (comprobante de prueba){% endif %}
     </div>
   </div>

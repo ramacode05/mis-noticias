@@ -18,6 +18,7 @@
       <a href="{{ url_for('conceptos.lista') }}">Conceptos</a>
       <a href="{{ url_for('copias.ver') }}">Copias</a>
       <a href="{{ url_for('arca.ver') }}">ARCA</a>
+      <a href="{{ url_for('mail.configurar') }}">Mail</a>
     </nav>
     <form method="post" action="{{ url_for('cerrar') }}" class="cerrar-sistema"
           onsubmit="return confirm('¿Cerrar el sistema? Hacelo siempre antes de usarlo en la otra computadora.');">

@@ -40,6 +40,7 @@ class ArcaFalso:
         self.logins = 0
         self.pedidos = []          # XML de cada FECAESolicitar
         self.rechazar = None       # mensaje de error para el próximo FECAESolicitar
+        self.sin_relacion = False  # el certificado no está autorizado a facturar por la empresa
         self.cortar_despues = False  # autoriza pero "se corta internet" antes de responder
 
     def __call__(self, url, cuerpo, accion):
@@ -56,6 +57,11 @@ class ArcaFalso:
         assert "<ar:Token>TOKEN</ar:Token>" in cuerpo and "<ar:Cuit>30707871918</ar:Cuit>" in cuerpo
         pv, tipo = int(campo(cuerpo, "PtoVta")), int(campo(cuerpo, "CbteTipo"))
         if metodo == "FECompUltimoAutorizado":
+            if self.sin_relacion:
+                return sobre("<FECompUltimoAutorizadoResponse><FECompUltimoAutorizadoResult><Errors><Err>"
+                             "<Code>600</Code><Msg>ValidacionDeToken: No aparecio CUIT en lista de relaciones: "
+                             "30707871918</Msg></Err></Errors></FECompUltimoAutorizadoResult>"
+                             "</FECompUltimoAutorizadoResponse>")
             return sobre(f"<FECompUltimoAutorizadoResponse><FECompUltimoAutorizadoResult><PtoVta>{pv}</PtoVta>"
                          f"<CbteTipo>{tipo}</CbteTipo><CbteNro>{self.ultimos.get((pv, tipo), 0)}</CbteNro>"
                          "</FECompUltimoAutorizadoResult></FECompUltimoAutorizadoResponse>")
@@ -141,6 +147,14 @@ class PantallaArcaTest(ConArca):
         html = self.cli.post("/arca/activar", data={"ambiente": "homologacion"},
                              follow_redirects=True).get_data(as_text=True)
         self.assertIn("CONECTADO A ARCA - HOMOLOGACIÓN", html)
+
+    def test_falta_autorizar_cuit_de_la_empresa(self):
+        self.configurar(activar=False)
+        self.falso.sin_relacion = True
+        html = self.cli.post("/arca/homologacion/probar").get_data(as_text=True)
+        self.assertIn("ARCA aceptó el certificado", html)
+        self.assertIn("falta autorizarlo a facturar por la empresa", html)
+        self.assertIn("CUIT representada 30707871918", html)
 
     def test_pedido_contiene_cuit_y_alias(self):
         self.cli.post("/arca/homologacion/pedido")

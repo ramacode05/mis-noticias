@@ -54,6 +54,8 @@ facturacion/            Código de la aplicación
   pdf.py                PDF de la factura con el diseño de ARCA (ReportLab) y QR de ARCA
   cobros.py             Cobros (por el total de una o varias facturas del cliente)
   cuentas.py            Cuentas corrientes: saldos de todos los clientes y movimientos de cada uno
+  cierre.py             Cierre de mes: ingresos (facturas + efectivo) contra gastos (proveedores +
+                        categorías), Humberto 21% y beneficio; planilla anual y Excel
   resumen.py            Resumen mensual (ventas, cobros, detalle) y descarga en Excel
   excel.py              Arma archivos .xlsx con la biblioteca estándar de Python (zip + XML)
   arca.py               Cliente de ARCA: clave/CSR/certificado, WSAA (ticket, se reusa 12 h) y WSFEv1
@@ -110,6 +112,16 @@ iniciar.bat             Abre el sistema en Windows
 - Desde Gmail con contraseña de aplicación (smtp.gmail.com:465). Config en `configuracion`:
   mail_usuario, mail_clave, mail_automatico. Si falla el mail, la factura igual queda emitida y se
   anota el motivo (columnas mail_enviado, mail_para, mail_error).
+
+## Cierre de mes (pedido del usuario, como sus planillas)
+
+- Menú "Cierre de mes". Cada mes arranca vacío. Tarjetas: Ingresos (verde) = facturas del mes con IVA
+  (menos NC) + efectivo no facturado (tabla `ingresos_efectivo`); Gastos (rojo) = facturas de
+  proveedores (tabla `compras`, solo el total, con vencimiento y "pagada") + gastos por categoría
+  (`categorias_gasto`, editables, y `gastos_mes`); Resultado = ingresos - gastos;
+  **Humberto = siempre 21% del resultado**; Beneficio = resultado - Humberto.
+- Avisa las facturas de proveedores sin pagar que vencen en 7 días. "Ver el año": planilla con los
+  12 meses (categorías, totales, resultado, Humberto, beneficio) y descarga en Excel.
 
 ## Mejoras propuestas para más adelante
 

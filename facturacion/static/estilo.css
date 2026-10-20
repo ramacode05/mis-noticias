@@ -168,3 +168,51 @@ td.num { white-space: nowrap; }
 code { background: #eef1f5; padding: 0 .25rem; border-radius: 3px; }
 form.en-linea { display: inline; }
 .error-texto { color: #b42318; }
+
+/* --- Cierre de mes --- */
+.tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .8rem; margin-bottom: 1.2rem; }
+.tarjeta { background: #fff; border-radius: 8px; padding: .8rem 1rem; border-top: 5px solid #999; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: flex; flex-direction: column; gap: .2rem; }
+.tarjeta span { font-size: .85rem; color: #444; font-weight: 600; }
+.tarjeta strong { font-size: 1.25rem; white-space: nowrap; }
+.tarjeta small { color: #666; font-size: .78rem; }
+.tarjeta.verde { border-top-color: #4caf50; }
+.tarjeta.roja { border-top-color: #e53935; }
+.tarjeta.violeta { border-top-color: #8e44ad; }
+.tarjeta.destacada { background: #f6effa; }
+.negativo { color: #b42318; }
+.columnas-cierre { display: grid; grid-template-columns: 1fr 1.6fr; gap: 1rem; }
+@media (max-width: 1000px) { .columnas-cierre { grid-template-columns: 1fr; } }
+.titulo-verde { border-left: 6px solid #4caf50; padding-left: .5rem; }
+.titulo-rojo { border-left: 6px solid #e53935; padding-left: .5rem; }
+.formulario h3 { font-size: 1rem; margin: 1rem 0 .4rem; color: #1f3a5f; }
+.formulario h3:first-child { margin-top: 0; }
+.tabla-chica { font-size: .9rem; margin-bottom: .6rem; }
+.tabla-chica td, .tabla-chica th { padding: .3rem .4rem; }
+.tabla-chica input { padding: .3rem; font-size: 14px; border: 1px solid #bbb; border-radius: 4px; width: 100%; }
+.total-fila td { font-weight: bold; background: #f4f5f7; }
+.fila-carga { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.fila-carga input { padding: .4rem; font-size: 14px; border: 1px solid #bbb; border-radius: 4px; font-family: inherit; }
+.fila-carga input[name=detalle], .fila-carga input[name=proveedor] { flex: 1; min-width: 9rem; }
+.fila-carga input.num { width: 8rem; text-align: right; }
+.fila-carga input.corto { width: 6rem; }
+.fila-carga .vence { font-size: .85rem; display: flex; gap: .3rem; align-items: center; }
+tr.vencida td { background: #fbe3e3; }
+.marca-pago { background: #fbe3e3; color: #8a1f1f; border: 1px solid #d99; padding: .1rem .5rem; font-size: .8rem; }
+.marca-pago.si { background: #dff3e3; color: #1d5e2b; border-color: #9c9; }
+.grilla-gastos { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .6rem 1rem; margin-bottom: 1rem; }
+.grilla-gastos label { font-weight: 600; font-size: .9rem; margin: 0; }
+.grilla-gastos input { text-align: right; }
+.selector-mes { padding: .4rem; font-size: 15px; border: 1px solid #bbb; border-radius: 4px; }
+.tabla-ancha { overflow-x: auto; }
+.planilla-anual { font-size: .82rem; white-space: nowrap; }
+.planilla-anual th, .planilla-anual td { padding: .35rem .5rem; }
+.planilla-anual thead th { background: #2f6fd1; color: #fff; }
+.planilla-anual tbody th { background: #e9edf3; text-align: left; }
+.planilla-anual tr > :first-child { position: sticky; left: 0; z-index: 1; }
+.planilla-anual tfoot th, .planilla-anual tfoot td { background: #e9edf3; font-weight: bold; }
+.planilla-anual .col-roja { background: #fdecea; }
+.planilla-anual thead .col-roja { background: #e53935; }
+.planilla-anual .col-verde { background: #e8f5e9; }
+.planilla-anual thead .col-verde { background: #43a047; }
+.planilla-anual .col-violeta { background: #f3e9f8; }
+.planilla-anual thead .col-violeta { background: #8e44ad; }

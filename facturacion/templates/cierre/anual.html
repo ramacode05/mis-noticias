@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block titulo %}Cierre {{ anio }}{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Cierre {{ anio }}</h1>
+  <div class="acciones no-imprimir">
+    <a class="boton secundario" href="{{ url_for('cierre.anual', anio=anio - 1) }}">&larr; {{ anio - 1 }}</a>
+    <a class="boton secundario" href="{{ url_for('cierre.anual', anio=anio + 1) }}">{{ anio + 1 }} &rarr;</a>
+    <a class="boton" href="{{ url_for('cierre.anual_excel', anio=anio) }}">Bajar en Excel</a>
+    <button type="button" class="boton secundario" onclick="window.print()">Imprimir</button>
+  </div>
+</div>
+{% set cats = categorias|selectattr('activa')|list %}
+<div class="tarjetas">
+  <div class="tarjeta verde"><span>Ingresos del año</span><strong>{{ suma.ingresos|pesos }}</strong></div>
+  <div class="tarjeta roja"><span>Gastos del año</span><strong>{{ suma.gastos|pesos }}</strong></div>
+  <div class="tarjeta violeta"><span>Resultado</span><strong>{{ suma.resultado|pesos }}</strong></div>
+  <div class="tarjeta violeta"><span>Humberto (21%)</span><strong>{{ suma.humberto|pesos }}</strong></div>
+  <div class="tarjeta violeta destacada"><span>Beneficio</span><strong>{{ suma.beneficio|pesos }}</strong></div>
+</div>
+<div class="tabla-ancha">
+<table class="planilla-anual">
+  <thead><tr><th>Mes</th>
+    {% for c in cats %}<th class="num">{{ c.nombre }}</th>{% endfor %}
+    <th class="num">Proveedores</th><th class="num col-roja">Total gastos</th><th class="num col-verde">Total ingresos</th>
+    <th class="num col-violeta">Resultado</th><th class="num col-violeta">Humberto</th><th class="num col-violeta">Beneficio</th></tr></thead>
+  <tbody>
+  {% for m in meses %}
+    <tr>
+      <th><a href="{{ url_for('cierre.ver', mes=m.mes) }}">{{ MESES[loop.index0] }}</a></th>
+      {% for c in cats %}<td class="num">{{ m.por_categoria[c.id]|pesos if c.id in m.por_categoria else '' }}</td>{% endfor %}
+      <td class="num">{{ m.proveedores|pesos if m.proveedores else '' }}</td>
+      <td class="num col-roja">{{ m.gastos|pesos if m.gastos else '' }}</td>
+      <td class="num col-verde">{{ m.ingresos|pesos if m.ingresos else '' }}</td>
+      <td class="num col-violeta">{{ m.resultado|pesos }}</td>
+      <td class="num col-violeta">{{ m.humberto|pesos }}</td>
+      <td class="num col-violeta"><strong>{{ m.beneficio|pesos }}</strong></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><th>Anual</th>
+    {% for c in cats %}<td class="num">{{ suma.por_categoria.get(c.id, 0)|pesos }}</td>{% endfor %}
+    <td class="num">{{ suma.proveedores|pesos }}</td><td class="num col-roja">{{ suma.gastos|pesos }}</td>
+    <td class="num col-verde">{{ suma.ingresos|pesos }}</td><td class="num col-violeta">{{ suma.resultado|pesos }}</td>
+    <td class="num col-violeta">{{ suma.humberto|pesos }}</td><td class="num col-violeta"><strong>{{ suma.beneficio|pesos }}</strong></td></tr></tfoot>
+</table>
+</div>
+<p class="nota no-imprimir">Tocá el nombre de un mes para ver y cargar su cierre. Si la planilla no entra en la pantalla, deslizala hacia la derecha para ver los totales.</p>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block titulo %}Cierre de {{ nombre_mes }}{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Cierre de {{ nombre_mes }}</h1>
+  <div class="acciones no-imprimir">
+    <a class="boton secundario" href="{{ url_for('cierre.ver', mes=anterior) }}">&larr; Mes anterior</a>
+    <form method="get" class="en-linea"><input type="month" name="mes" value="{{ mes }}" onchange="this.form.submit()" class="selector-mes"></form>
+    <a class="boton secundario" href="{{ url_for('cierre.ver', mes=siguiente) }}">Mes siguiente &rarr;</a>
+    <a class="boton" href="{{ url_for('cierre.anual', anio=mes[:4]) }}">Ver el año</a>
+  </div>
+</div>
+
+{% if t.hay_prueba %}<div class="aviso aviso-info">Las ventas incluyen facturas de <strong>PRUEBA</strong> (sin validez fiscal).</div>{% endif %}
+
+<div class="tarjetas">
+  <div class="tarjeta verde"><span>Total ingresos</span><strong>{{ t.ingresos|pesos }}</strong>
+    <small>Facturado {{ t.ventas|pesos }} + efectivo {{ t.efectivo|pesos }}</small></div>
+  <div class="tarjeta roja"><span>Total gastos</span><strong>{{ t.gastos|pesos }}</strong>
+    <small>Proveedores {{ t.proveedores|pesos }} + gastos {{ t.gastos_categorias|pesos }}</small></div>
+  <div class="tarjeta violeta"><span>Resultado de la empresa</span><strong class="{{ 'negativo' if t.resultado < 0 }}">{{ t.resultado|pesos }}</strong>
+    <small>Ingresos − gastos</small></div>
+  <div class="tarjeta violeta"><span>Humberto (21%)</span><strong>{{ t.humberto|pesos }}</strong><small>21% del resultado</small></div>
+  <div class="tarjeta violeta destacada"><span>Beneficio</span><strong class="{{ 'negativo' if t.beneficio < 0 }}">{{ t.beneficio|pesos }}</strong>
+    <small>Resultado − Humberto</small></div>
+</div>
+
+{% if por_vencer %}
+<div class="aviso error">
+  <strong>Facturas de proveedores sin pagar que vencen en los próximos días:</strong>
+  <ul>{% for c in por_vencer %}<li>{{ c.proveedor }}{% if c.numero %} ({{ c.numero }}){% endif %}: {{ c.total|pesos }} — vence el {{ c.vencimiento|fecha }}{% if c.vencimiento < hoy %} <strong>(VENCIDA)</strong>{% endif %}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="columnas-cierre">
+  <section>
+    <h2 class="titulo-verde">Ingresos</h2>
+    <div class="formulario ancho">
+      <h3>Facturado en el mes</h3>
+      <p>{{ t.facturas }} factura(s){% if t.notas_credito %} y {{ t.notas_credito }} nota(s) de crédito{% endif %}:
+        <strong>{{ t.ventas|pesos }}</strong> <small>(con IVA)</small> —
+        <a href="{{ url_for('facturas.lista', mes=mes) }}">ver facturas</a></p>
+
+      <h3 id="efectivo">Efectivo (no facturado)</h3>
+      {% if efectivo %}
+      <table class="tabla-chica">
+        {% for e in efectivo %}
+        <tr><td>{{ e.fecha|fecha }}</td><td>{{ e.detalle }}</td><td class="num">{{ e.importe|pesos }}</td>
+          <td class="accion"><form method="post" action="{{ url_for('cierre.eliminar_efectivo', id=e.id, mes=mes) }}" onsubmit="return confirm('¿Eliminar este ingreso?');"><button class="quitar" title="Eliminar">X</button></form></td></tr>
+        {% endfor %}
+        <tr class="total-fila"><td colspan="2">Total efectivo</td><td class="num">{{ t.efectivo|pesos }}</td><td></td></tr>
+      </table>
+      {% endif %}
+      <form method="post" action="{{ url_for('cierre.agregar_efectivo', mes=mes) }}" class="fila-carga">
+        <input type="date" name="fecha" value="{{ fecha_sugerida }}" required>
+        <input name="detalle" placeholder="Detalle (opcional)" maxlength="200">
+        <input name="importe" placeholder="Importe" inputmode="decimal" class="num" required>
+        <button type="submit" class="boton secundario">Agregar</button>
+      </form>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="titulo-rojo" id="proveedores">Facturas de proveedores</h2>
+    <div class="formulario ancho">
+      {% if compras %}
+      <table class="tabla-chica">
+        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Número</th><th class="num">Total</th><th>Vence</th><th>Pagada</th><th></th></tr></thead>
+        {% for c in compras %}
+        <tr class="{{ 'vencida' if not c.pagada and c.vencimiento and c.vencimiento < hoy }}">
+          <td>{{ c.fecha|fecha }}</td><td>{{ c.proveedor }}</td><td>{{ c.numero }}</td>
+          <td class="num">{{ c.total|pesos }}</td><td>{{ c.vencimiento|fecha }}</td>
+          <td><form method="post" action="{{ url_for('cierre.marcar_pagada', id=c.id, mes=mes) }}">
+            <button class="marca-pago {{ 'si' if c.pagada }}" title="Tocá para cambiar">{{ 'Sí, ' ~ (c.pagada|fecha) if c.pagada else 'No' }}</button></form></td>
+          <td class="accion"><form method="post" action="{{ url_for('cierre.eliminar_compra', id=c.id, mes=mes) }}" onsubmit="return confirm('¿Eliminar esta factura de proveedor?');"><button class="quitar" title="Eliminar">X</button></form></td>
+        </tr>
+        {% endfor %}
+        <tr class="total-fila"><td colspan="3">Total proveedores</td><td class="num">{{ t.proveedores|pesos }}</td><td colspan="3"></td></tr>
+      </table>
+      {% endif %}
+      <form method="post" action="{{ url_for('cierre.agregar_compra', mes=mes) }}" class="fila-carga">
+        <input type="date" name="fecha" value="{{ fecha_sugerida }}" required title="Fecha de la factura">
+        <input name="proveedor" list="lista-proveedores" placeholder="Proveedor" maxlength="200" required>
+        <input name="numero" placeholder="Número" maxlength="50" class="corto">
+        <input name="total" placeholder="Total" inputmode="decimal" class="num" required>
+        <label class="vence">Vence <input type="date" name="vencimiento"></label>
+        <button type="submit" class="boton secundario">Agregar</button>
+      </form>
+      <datalist id="lista-proveedores">{% for p in proveedores %}<option value="{{ p }}">{% endfor %}</datalist>
+    </div>
+  </section>
+</div>
+
+<h2 class="titulo-rojo" id="gastos">Gastos del mes por categoría</h2>
+<form method="post" action="{{ url_for('cierre.guardar_gastos', mes=mes) }}" class="formulario ancho">
+  <div class="grilla-gastos">
+    {% for c in categorias %}
+    <label>{{ c.nombre }}
+      <input name="cat_{{ c.id }}" inputmode="decimal" class="num" placeholder="-"
+             value="{{ (t.por_categoria[c.id]|pesos(signo=False)) if c.id in t.por_categoria else '' }}">
+    </label>
+    {% endfor %}
+  </div>
+  <div class="acciones">
+    <button type="submit" class="boton">Guardar gastos</button>
+    <span>Total gastos por categoría: <strong>{{ t.gastos_categorias|pesos }}</strong></span>
+    <a href="{{ url_for('cierre.editar_categorias', mes=mes) }}">Agregar o cambiar categorías</a>
+  </div>
+</form>
+{% endblock %}

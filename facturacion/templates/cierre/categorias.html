@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Categorías de gastos{% endblock %}
+{% block contenido %}
+<h1>Categorías de gastos</h1>
+<p class="nota">Son las columnas de gastos del cierre. Destildá "Activa" para ocultar una que ya no usás (los meses viejos la conservan).</p>
+<form method="post" class="formulario">
+  <input type="hidden" name="mes" value="{{ mes }}">
+  <table class="tabla-chica">
+    <thead><tr><th>Orden</th><th>Nombre</th><th>Activa</th></tr></thead>
+    {% for c in categorias %}
+    <tr><td><input name="orden_{{ c.id }}" value="{{ c.orden }}" class="corto num" inputmode="numeric"></td>
+        <td><input name="nombre_{{ c.id }}" value="{{ c.nombre }}" maxlength="60"></td>
+        <td class="centro"><input type="checkbox" name="activa_{{ c.id }}" value="1" {% if c.activa %}checked{% endif %}></td></tr>
+    {% endfor %}
+  </table>
+  <label>Nueva categoría <input name="nueva" maxlength="60" placeholder="Ej: Seguro"></label>
+  <div class="acciones">
+    <button type="submit" class="boton">Guardar</button>
+    <a href="{{ url_for('cierre.ver', mes=mes) if mes else url_for('cierre.ver') }}">Volver al cierre</a>
+  </div>
+</form>
+{% endblock %}

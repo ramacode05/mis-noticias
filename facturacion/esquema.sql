@@ -110,3 +110,52 @@ CREATE TABLE IF NOT EXISTS cobro_facturas (
     importe         INTEGER NOT NULL,
     PRIMARY KEY (cobro_id, factura_id)
 );
+
+-- ===== Cierre de mes: ingresos en efectivo, facturas de proveedores y gastos por categoría =====
+-- Importes en centavos. El mes de cada registro sale de su fecha (AAAA-MM).
+
+-- Plata en efectivo que entra y no está facturada.
+CREATE TABLE IF NOT EXISTS ingresos_efectivo (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha           TEXT NOT NULL,
+    detalle         TEXT NOT NULL DEFAULT '',
+    importe         INTEGER NOT NULL,
+    creado          TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX IF NOT EXISTS ingresos_efectivo_fecha ON ingresos_efectivo (fecha);
+
+-- Facturas que le hacen los proveedores a la empresa (solo el total).
+CREATE TABLE IF NOT EXISTS compras (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha           TEXT NOT NULL,
+    proveedor       TEXT NOT NULL,
+    numero          TEXT NOT NULL DEFAULT '',
+    total           INTEGER NOT NULL,
+    vencimiento     TEXT,
+    pagada          TEXT,                       -- fecha de pago (NULL: pendiente)
+    observaciones   TEXT NOT NULL DEFAULT '',
+    creado          TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX IF NOT EXISTS compras_fecha ON compras (fecha);
+
+-- Categorías de gastos (las columnas de la planilla anual). Se pueden agregar u ocultar.
+CREATE TABLE IF NOT EXISTS categorias_gasto (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre          TEXT NOT NULL,
+    orden           INTEGER NOT NULL DEFAULT 0,
+    activa          INTEGER NOT NULL DEFAULT 1
+);
+CREATE UNIQUE INDEX IF NOT EXISTS categorias_gasto_nombre ON categorias_gasto (nombre COLLATE NOCASE);
+INSERT OR IGNORE INTO categorias_gasto (nombre, orden) VALUES
+    ('Jubilaciones', 1), ('Luz', 2), ('Teléfono', 3), ('Seguridad e higiene', 4),
+    ('Cartel y publicidad', 5), ('Inmobiliario', 6), ('Tasa municipal', 7), ('Agua', 8),
+    ('ARBA Ingresos brutos', 9), ('Contador', 10), ('Sueldos', 11), ('Aportes jubilatorios', 12),
+    ('Gas', 13), ('Atilio', 14), ('IVA', 15), ('Varios', 16);
+
+-- Importe de cada categoría en cada mes.
+CREATE TABLE IF NOT EXISTS gastos_mes (
+    mes             TEXT NOT NULL,              -- AAAA-MM
+    categoria_id    INTEGER NOT NULL REFERENCES categorias_gasto (id),
+    importe         INTEGER NOT NULL,
+    PRIMARY KEY (mes, categoria_id)
+);

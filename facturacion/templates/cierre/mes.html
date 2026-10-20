@@ -25,13 +25,6 @@
     <small>Resultado − Humberto</small></div>
 </div>
 
-{% if por_vencer %}
-<div class="aviso error">
-  <strong>Facturas de proveedores sin pagar que vencen en los próximos días:</strong>
-  <ul>{% for c in por_vencer %}<li>{{ c.proveedor }}{% if c.numero %} ({{ c.numero }}){% endif %}: {{ c.total|pesos }} — vence el {{ c.vencimiento|fecha }}{% if c.vencimiento < hoy %} <strong>(VENCIDA)</strong>{% endif %}</li>{% endfor %}</ul>
-</div>
-{% endif %}
-
 <div class="columnas-cierre">
   <section>
     <h2 class="titulo-verde">Ingresos</h2>
@@ -42,20 +35,11 @@
         <a href="{{ url_for('facturas.lista', mes=mes) }}">ver facturas</a></p>
 
       <h3 id="efectivo">Efectivo (no facturado)</h3>
-      {% if efectivo %}
-      <table class="tabla-chica">
-        {% for e in efectivo %}
-        <tr><td>{{ e.fecha|fecha }}</td><td>{{ e.detalle }}</td><td class="num">{{ e.importe|pesos }}</td>
-          <td class="accion"><form method="post" action="{{ url_for('cierre.eliminar_efectivo', id=e.id, mes=mes) }}" onsubmit="return confirm('¿Eliminar este ingreso?');"><button class="quitar" title="Eliminar">X</button></form></td></tr>
-        {% endfor %}
-        <tr class="total-fila"><td colspan="2">Total efectivo</td><td class="num">{{ t.efectivo|pesos }}</td><td></td></tr>
-      </table>
-      {% endif %}
-      <form method="post" action="{{ url_for('cierre.agregar_efectivo', mes=mes) }}" class="fila-carga">
-        <input type="date" name="fecha" value="{{ fecha_sugerida }}" required>
-        <input name="detalle" placeholder="Detalle (opcional)" maxlength="200">
-        <input name="importe" placeholder="Importe" inputmode="decimal" class="num" required>
-        <button type="submit" class="boton secundario">Agregar</button>
+      <p class="nota">El total del mes, una sola vez a fin de mes. Si lo cambiás, se reemplaza.</p>
+      <form method="post" action="{{ url_for('cierre.guardar_efectivo', mes=mes) }}" class="fila-carga">
+        <input name="importe" placeholder="-" inputmode="decimal" class="num"
+               value="{{ t.efectivo|pesos(signo=False) if t.efectivo else '' }}">
+        <button type="submit" class="boton secundario">Guardar efectivo</button>
       </form>
     </div>
   </section>
@@ -65,17 +49,17 @@
     <div class="formulario ancho">
       {% if compras %}
       <table class="tabla-chica">
-        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Número</th><th class="num">Total</th><th>Vence</th><th>Pagada</th><th></th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Número</th><th class="num">Total</th><th>Pagada</th><th></th></tr></thead>
         {% for c in compras %}
-        <tr class="{{ 'vencida' if not c.pagada and c.vencimiento and c.vencimiento < hoy }}">
+        <tr>
           <td>{{ c.fecha|fecha }}</td><td>{{ c.proveedor }}</td><td>{{ c.numero }}</td>
-          <td class="num">{{ c.total|pesos }}</td><td>{{ c.vencimiento|fecha }}</td>
+          <td class="num">{{ c.total|pesos }}</td>
           <td><form method="post" action="{{ url_for('cierre.marcar_pagada', id=c.id, mes=mes) }}">
             <button class="marca-pago {{ 'si' if c.pagada }}" title="Tocá para cambiar">{{ 'Sí, ' ~ (c.pagada|fecha) if c.pagada else 'No' }}</button></form></td>
           <td class="accion"><form method="post" action="{{ url_for('cierre.eliminar_compra', id=c.id, mes=mes) }}" onsubmit="return confirm('¿Eliminar esta factura de proveedor?');"><button class="quitar" title="Eliminar">X</button></form></td>
         </tr>
         {% endfor %}
-        <tr class="total-fila"><td colspan="3">Total proveedores</td><td class="num">{{ t.proveedores|pesos }}</td><td colspan="3"></td></tr>
+        <tr class="total-fila"><td colspan="3">Total proveedores</td><td class="num">{{ t.proveedores|pesos }}</td><td colspan="2"></td></tr>
       </table>
       {% endif %}
       <form method="post" action="{{ url_for('cierre.agregar_compra', mes=mes) }}" class="fila-carga">
@@ -83,7 +67,6 @@
         <input name="proveedor" list="lista-proveedores" placeholder="Proveedor" maxlength="200" required>
         <input name="numero" placeholder="Número" maxlength="50" class="corto">
         <input name="total" placeholder="Total" inputmode="decimal" class="num" required>
-        <label class="vence">Vence <input type="date" name="vencimiento"></label>
         <button type="submit" class="boton secundario">Agregar</button>
       </form>
       <datalist id="lista-proveedores">{% for p in proveedores %}<option value="{{ p }}">{% endfor %}</datalist>

@@ -195,8 +195,6 @@ form.en-linea { display: inline; }
 .fila-carga input[name=detalle], .fila-carga input[name=proveedor] { flex: 1; min-width: 9rem; }
 .fila-carga input.num { width: 8rem; text-align: right; }
 .fila-carga input.corto { width: 6rem; }
-.fila-carga .vence { font-size: .85rem; display: flex; gap: .3rem; align-items: center; }
-tr.vencida td { background: #fbe3e3; }
 .marca-pago { background: #fbe3e3; color: #8a1f1f; border: 1px solid #d99; padding: .1rem .5rem; font-size: .8rem; }
 .marca-pago.si { background: #dff3e3; color: #1d5e2b; border-color: #9c9; }
 .grilla-gastos { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .6rem 1rem; margin-bottom: 1rem; }

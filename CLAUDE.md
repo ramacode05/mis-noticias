@@ -116,11 +116,13 @@ iniciar.bat             Abre el sistema en Windows
 ## Cierre de mes (pedido del usuario, como sus planillas)
 
 - Menú "Cierre de mes". Cada mes arranca vacío. Tarjetas: Ingresos (verde) = facturas del mes con IVA
-  (menos NC) + efectivo no facturado (tabla `ingresos_efectivo`); Gastos (rojo) = facturas de
-  proveedores (tabla `compras`, solo el total, con vencimiento y "pagada") + gastos por categoría
+  (menos NC) + efectivo no facturado (un solo importe por mes, cargado a fin de mes; se guarda como
+  una fila en `ingresos_efectivo` con fecha AAAA-MM-01); Gastos (rojo) = facturas de
+  proveedores (tabla `compras`, solo el total, con "pagada"; sin aviso de
+  vencimiento: el usuario no lo quiere) + gastos por categoría
   (`categorias_gasto`, editables, y `gastos_mes`); Resultado = ingresos - gastos;
   **Humberto = siempre 21% del resultado**; Beneficio = resultado - Humberto.
-- Avisa las facturas de proveedores sin pagar que vencen en 7 días. "Ver el año": planilla con los
+- "Ver el año": planilla con los
   12 meses (categorías, totales, resultado, Humberto, beneficio) y descarga en Excel.
 
 ## Mejoras propuestas para más adelante

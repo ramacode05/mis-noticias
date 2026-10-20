@@ -7,7 +7,7 @@ Igual que la planilla que usaba el usuario:
   Humberto          = 21% del Resultado
   Beneficio         = Resultado - Humberto
 """
-from datetime import date, timedelta
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
@@ -21,7 +21,6 @@ bp = Blueprint("cierre", __name__, url_prefix="/cierre")
 PORCENTAJE_HUMBERTO = Decimal("21")
 MESES = ("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre",
          "Octubre", "Noviembre", "Diciembre")
-AVISO_VENCIMIENTO = 7  # días antes del vencimiento en que se avisa
 
 
 def mes_de_pedido():
@@ -112,18 +111,12 @@ def ver():
     hoy = date.today()
     compras = db.execute("SELECT * FROM compras WHERE substr(fecha, 1, 7) = ? ORDER BY fecha, id",
                          (mes,)).fetchall()
-    # Facturas de proveedores sin pagar que vencen pronto (de cualquier mes).
-    por_vencer = db.execute(
-        "SELECT * FROM compras WHERE pagada IS NULL AND vencimiento IS NOT NULL AND vencimiento <= ? "
-        "ORDER BY vencimiento", ((hoy + timedelta(days=AVISO_VENCIMIENTO)).isoformat(),)).fetchall()
     proveedores = [f["proveedor"] for f in db.execute(
         "SELECT proveedor FROM compras GROUP BY proveedor COLLATE NOCASE ORDER BY MAX(fecha) DESC LIMIT 200")]
     return render_template(
         "cierre/mes.html", mes=mes, nombre_mes=nombre_mes(mes), t=totales_mes(mes),
         anterior=mes_vecino(mes, -1), siguiente=mes_vecino(mes, 1), categorias=categorias(),
-        efectivo=db.execute("SELECT * FROM ingresos_efectivo WHERE substr(fecha, 1, 7) = ? ORDER BY fecha, id",
-                            (mes,)).fetchall(),
-        compras=compras, por_vencer=por_vencer, proveedores=proveedores, hoy=hoy.isoformat(),
+        compras=compras, proveedores=proveedores,
         fecha_sugerida=hoy.isoformat() if hoy.strftime("%Y-%m") == mes else f"{mes}-01")
 
 
@@ -157,28 +150,22 @@ def guardar_gastos():
 
 
 @bp.route("/efectivo", methods=("POST",))
-def agregar_efectivo():
+def guardar_efectivo():
+    """El efectivo no facturado se carga una vez por mes: un solo importe (vacío = nada)."""
     mes = mes_de_pedido()
-    fecha = leer_fecha(request.form.get("fecha"))
-    importe = a_centavos(request.form.get("importe"))
-    if fecha is None or importe is None or importe <= 0:
-        flash("Para el efectivo hace falta la fecha y un importe mayor a cero.", "error")
+    texto = (request.form.get("importe") or "").strip()
+    importe = a_centavos(texto) if texto else 0
+    if importe is None or importe < 0:
+        flash("El importe del efectivo no es válido.", "error")
         return volver(mes, "efectivo")
     db = get_db()
-    db.execute("INSERT INTO ingresos_efectivo (fecha, detalle, importe) VALUES (?, ?, ?)",
-               (fecha.isoformat(), (request.form.get("detalle") or "").strip()[:200], importe))
+    db.execute("DELETE FROM ingresos_efectivo WHERE substr(fecha, 1, 7) = ?", (mes,))
+    if importe:
+        db.execute("INSERT INTO ingresos_efectivo (fecha, detalle, importe) VALUES (?, '', ?)",
+                   (f"{mes}-01", importe))
     db.commit()
-    flash("Ingreso en efectivo agregado.", "ok")
-    return volver(fecha.strftime("%Y-%m"), "efectivo")
-
-
-@bp.route("/efectivo/<int:id>/eliminar", methods=("POST",))
-def eliminar_efectivo(id):
-    db = get_db()
-    db.execute("DELETE FROM ingresos_efectivo WHERE id = ?", (id,))
-    db.commit()
-    flash("Ingreso en efectivo eliminado.", "ok")
-    return volver(mes_de_pedido(), "efectivo")
+    flash(f"Efectivo de {nombre_mes(mes)} guardado.", "ok")
+    return volver(mes, "efectivo")
 
 
 @bp.route("/compras", methods=("POST",))
@@ -187,15 +174,12 @@ def agregar_compra():
     fecha = leer_fecha(request.form.get("fecha"))
     total = a_centavos(request.form.get("total"))
     proveedor = " ".join((request.form.get("proveedor") or "").split())[:200]
-    vencimiento = leer_fecha(request.form.get("vencimiento"))
     if fecha is None or not proveedor or total is None or total <= 0:
         flash("Para la factura del proveedor hacen falta la fecha, el proveedor y el total.", "error")
         return volver(mes, "proveedores")
     db = get_db()
-    db.execute("INSERT INTO compras (fecha, proveedor, numero, total, vencimiento, observaciones) "
-               "VALUES (?, ?, ?, ?, ?, ?)",
+    db.execute("INSERT INTO compras (fecha, proveedor, numero, total, observaciones) VALUES (?, ?, ?, ?, ?)",
                (fecha.isoformat(), proveedor, (request.form.get("numero") or "").strip()[:50], total,
-                vencimiento.isoformat() if vencimiento else None,
                 (request.form.get("observaciones") or "").strip()[:500]))
     db.commit()
     flash(f"Factura de {proveedor} agregada.", "ok")

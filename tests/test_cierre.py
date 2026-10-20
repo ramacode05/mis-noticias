@@ -1,6 +1,6 @@
 """Pruebas del cierre de mes (ingresos contra gastos, Humberto y beneficio)."""
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 
 from facturacion import cierre
 from tests.test_facturas import HOY, BaseFacturas
@@ -31,8 +31,8 @@ class CierreTest(BaseFacturas):
         self.confirmar()                                    # Factura A: 72.600 con IVA
         self.confirmar()
         self.cli.post("/facturas/2/nota-credito", data={"fecha": HOY, "token": "nc"})  # resta 72.600
-        self.cli.post("/cierre/efectivo", data={"mes": MES, "fecha": HOY, "detalle": "Arreglo",
-                                                "importe": "10.000,50"})
+        self.cli.post("/cierre/efectivo", data={"mes": MES, "importe": "3.000"})
+        self.cli.post("/cierre/efectivo", data={"mes": MES, "importe": "10.000,50"})  # reemplaza
         self.cli.post("/cierre/compras", data={"mes": MES, "fecha": HOY, "proveedor": "Aceros  SA",
                                                "numero": "A-1", "total": "20.000"})
         luz, varios = self.categoria("Luz"), self.categoria("Varios")
@@ -46,7 +46,7 @@ class CierreTest(BaseFacturas):
         self.assertEqual(t["beneficio"], t["resultado"] - t["humberto"])
         html = self.cli.get(f"/cierre/?mes={MES}").get_data(as_text=True)
         self.assertIn("Aceros SA", html)
-        self.assertIn("Arreglo", html)
+        self.assertIn('value="10.000,50"', html)
         # Un campo vacío borra el gasto
         self.cli.post("/cierre/gastos", data={"mes": MES, f"cat_{luz}": "", f"cat_{varios}": "1000,25"})
         self.assertEqual(self.totales()["gastos_categorias"], 100025)
@@ -66,12 +66,17 @@ class CierreTest(BaseFacturas):
         with self.app.app_context():
             self.assertEqual(cierre.totales_mes(cierre.mes_vecino(MES, 1))["gastos"], 0)
 
-    def test_vencimiento_y_pagada(self):
-        vence = (date.today() + timedelta(days=3)).isoformat()
-        self.cli.post("/cierre/compras", data={"mes": MES, "fecha": HOY, "proveedor": "Gomas SRL",
-                                               "total": "1000", "vencimiento": vence})
+    def test_efectivo_vacio_lo_borra(self):
+        self.cli.post("/cierre/efectivo", data={"mes": MES, "importe": "5000"})
+        self.assertEqual(self.totales()["efectivo"], 500000)
+        self.cli.post("/cierre/efectivo", data={"mes": MES, "importe": ""})
+        self.assertEqual(self.totales()["efectivo"], 0)
+
+    def test_pagada_y_eliminar(self):
+        self.cli.post("/cierre/compras", data={"mes": MES, "fecha": HOY, "proveedor": "Gomas SRL", "total": "1000"})
         html = self.cli.get("/cierre/").get_data(as_text=True)
-        self.assertIn("Gomas SRL", html.split("Facturas de proveedores")[0])  # aviso arriba
+        self.assertIn("Gomas SRL", html)
+        self.assertNotIn("Vence", html)
         self.cli.post(f"/cierre/compras/1/pagada?mes={MES}")
         con = sqlite3.connect(self.ruta)
         self.assertIsNotNone(con.execute("SELECT pagada FROM compras").fetchone()[0])

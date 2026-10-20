@@ -270,6 +270,16 @@ def estado_servidores(ambiente):
     return {k: _texto(raiz, k) for k in ("AppServer", "DbServer", "AuthServer")}
 
 
+def _cuando_vence_ticket(instance, ambiente):
+    try:
+        with open(rutas(instance, ambiente)["ticket"], encoding="utf-8") as f:
+            vence = datetime.fromisoformat(json.load(f)["vence"]).astimezone(ARGENTINA)
+    except (OSError, ValueError, KeyError):
+        return "en 12 horas"
+    dia = "hoy" if vence.date() == datetime.now(ARGENTINA).date() else f"el {vence:%d/%m}"
+    return f"{dia} después de las {vence:%H:%M}"
+
+
 def ultimo_autorizado(instance, ambiente, punto_venta, cbte_tipo):
     raiz = _wsfe(instance, ambiente, "FECompUltimoAutorizado",
                  f"<ar:PtoVta>{punto_venta}</ar:PtoVta><ar:CbteTipo>{cbte_tipo}</ar:CbteTipo>")
@@ -279,8 +289,9 @@ def ultimo_autorizado(instance, ambiente, punto_venta, cbte_tipo):
             f"El certificado funciona, pero en ARCA falta autorizarlo a facturar por la empresa "
             f"(CUIT {EMISOR['cuit']}). En \"WSASS\" (homologación) o en el \"Administrador de "
             f"Relaciones\" (producción) creá la autorización al servicio \"wsfe\" con CUIT "
-            f"representada {EMISOR['cuit']}. ARCA tarda en tomar el cambio: si sigue igual, probá de "
-            f"nuevo después de 12 horas. (" + "; ".join(errores) + ")")
+            f"representada {EMISOR['cuit']}. Si ya lo hiciste, ARCA recién lo toma con el próximo "
+            f"permiso de acceso: probá de nuevo {_cuando_vence_ticket(instance, ambiente)}. ("
+            + "; ".join(errores) + ")")
     if errores:
         raise ErrorArca("ARCA no informó el último número: " + "; ".join(errores))
     return int(_texto(raiz, "CbteNro") or 0)

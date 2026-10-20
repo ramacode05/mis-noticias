@@ -155,6 +155,7 @@ class PantallaArcaTest(ConArca):
         self.assertIn("ARCA aceptó el certificado", html)
         self.assertIn("falta autorizarlo a facturar por la empresa", html)
         self.assertIn("CUIT representada 30707871918", html)
+        self.assertRegex(html, r"probá de nuevo (hoy|el \d\d/\d\d) después de las \d\d:\d\d")
 
     def test_pedido_contiene_cuit_y_alias(self):
         self.cli.post("/arca/homologacion/pedido")
